@@ -40,6 +40,8 @@
 #include <strings.h>
 #include <signal.h>
 
+#include <SDL.h>
+
 #include <tools/i18n.h>
 #include <tools/tracelog.h>
 #include <tools/z_ucs.h>
@@ -72,15 +74,20 @@
 #endif //ENABLE_X11_IMAGES
 
 /*
-#define NCURSESW_WCHAR_T_BUF_SIZE 64
-#define NCURSESW_Z_UCS_BUF_SIZE 32
-#define NCURSESW_OUTPUT_CHAR_BUF_SIZE 80
+#define SDL_WCHAR_T_BUF_SIZE 64
+#define SDL_Z_UCS_BUF_SIZE 32
+#define SDL_OUTPUT_CHAR_BUF_SIZE 80
 */
 
 static char* interface_name = "sdl";
+SDL_Surface* Surf_Display;
+static z_colour screen_default_foreground_color = Z_COLOUR_BLACK;
+static z_colour screen_default_background_color = Z_COLOUR_WHITE;
+static int sdl_interface_screen_height = 480;
+static int sdl_interface_screen_width = 640;
 /*
-static int ncursesw_argc;
-static char **ncursesw_argv;
+static int sdl_argc;
+static char **sdl_argv;
 static bool dont_update_story_list_on_start = false;
 static bool directory_was_searched = false;
 static WORDWRAP *infowin_output_wordwrapper;
@@ -91,12 +98,10 @@ static int infowin_topindex;
 static int infowin_lines_skipped;
 static int infowin_skip_x;
 static bool infowin_full = false;
-static wchar_t wchar_t_buf[NCURSESW_WCHAR_T_BUF_SIZE];
-static z_ucs z_ucs_t_buf[NCURSESW_Z_UCS_BUF_SIZE];
-static char output_char_buf[NCURSESW_OUTPUT_CHAR_BUF_SIZE];
-static bool ncursesw_interface_open = false;
-static z_colour screen_default_foreground_color = -1;
-static z_colour screen_default_background_color = -1;
+static wchar_t wchar_t_buf[SDL_WCHAR_T_BUF_SIZE];
+static z_ucs z_ucs_t_buf[SDL_Z_UCS_BUF_SIZE];
+static char output_char_buf[SDL_OUTPUT_CHAR_BUF_SIZE];
+static bool sdl_interface_open = false;
 
 static int n_color_pairs_in_use;
 static int n_color_pairs_available;
@@ -109,10 +114,8 @@ static bool color_initialized = false;
 // a longer time than all others is recycled.
 static short *color_pair_usage;
 
-static int ncursesw_interface_screen_height = -1;
-static int ncursesw_interface_screen_width = -1;
-static attr_t ncursesw_no_attrs = 0;
-static wchar_t ncursesw_setcchar_init_string[2];
+static attr_t sdl_no_attrs = 0;
+static wchar_t sdl_setcchar_init_string[2];
 static bool dont_allocate_new_colour_pair = false;
 
 // "max_nof_color_pairs"  will be equal to story->max_nof_color_pairs once
@@ -141,7 +144,6 @@ static char *config_option_names[] = {
 };
 */
 
-/*
 static z_colour colorname_to_infocomcode(char *colorname)
 {
   if      (strcmp(colorname, "black") == 0)
@@ -163,8 +165,39 @@ static z_colour colorname_to_infocomcode(char *colorname)
   else
     return -1;
 }
-*/
 
+
+static Uint32 z_to_sdl_colour(z_colour z_colour_to_convert)
+{
+  if (z_colour_to_convert == Z_COLOUR_BLACK) {
+    return SDL_MapRGB(Surf_Display->format, 0, 0, 0);
+  }
+  else if (z_colour_to_convert == Z_COLOUR_RED)    {
+    return SDL_MapRGB(Surf_Display->format, 255, 0, 0);
+  }
+  else if (z_colour_to_convert == Z_COLOUR_GREEN) {
+    return SDL_MapRGB(Surf_Display->format, 0, 255, 0);
+  }
+  else if (z_colour_to_convert == Z_COLOUR_YELLOW) {
+    return SDL_MapRGB(Surf_Display->format, 255, 255, 0);
+  }
+  else if (z_colour_to_convert == Z_COLOUR_BLUE) {
+    return SDL_MapRGB(Surf_Display->format, 0, 0, 255);
+  }
+  else if (z_colour_to_convert == Z_COLOUR_MAGENTA) {
+    return SDL_MapRGB(Surf_Display->format, 255, 0, 255);
+  }
+  else if (z_colour_to_convert == Z_COLOUR_CYAN) {
+    return SDL_MapRGB(Surf_Display->format, 0, 255, 255);
+  }
+  else if (z_colour_to_convert == Z_COLOUR_WHITE) {
+    return SDL_MapRGB(Surf_Display->format, 255, 255, 255);
+  }
+  else {
+    TRACE_LOG("Invalid color.");
+    exit(-2);
+  }
+}
 
 /*
 static z_ucs *z_ucs_string_to_wchar_t(wchar_t *dest, z_ucs *src,
@@ -291,7 +324,7 @@ static void infowin_z_ucs_output_wordwrap_destination(z_ucs *z_ucs_output,
     z_ucs_output = z_ucs_string_to_wchar_t(
         wchar_t_buf,
         z_ucs_output,
-        NCURSESW_WCHAR_T_BUF_SIZE);
+        SDL_WCHAR_T_BUF_SIZE);
 
     // Ignore errors, since output on the last line always causes
     // ERR to be returned.
@@ -327,88 +360,62 @@ static z_colour curses_to_z_colour(short curses_color)
 */
 
 
-static void goto_yx(int UNUSED(x), int UNUSED(y))
+static void draw_grayscale_pixel(int y, int x, uint8_t pixel_value)
 {
-  //TRACE_LOG("move: %d,%d\n", y, x);
-  //move(y-1, x-1);
-}
+  Uint32 color = SDL_MapRGB(Surf_Display->format,
+      pixel_value, pixel_value, pixel_value);
 
+  //printf("%d, %d, %d\n", y, x, pixel_value);
 
-/*
-static void ncursesw_fputws(wchar_t *str, FILE *out)
-{
-#ifdef __CYGWIN__
-  while(*str != 0)
-    fputc(wctob(*(str++)), out);
-#else
-  fputws(str, out);
-#endif
-}
-*/
-
-
-static void z_ucs_output(z_ucs *UNUSED(output))
-{
-  /*
-  cchar_t wcval;
-  //int errorcode;
-
-  TRACE_LOG("Interface-Output(%d): \"", ncursesw_interface_open);
-  TRACE_LOG_Z_UCS(output);
-  TRACE_LOG("\".\n");
-
-  if (ncursesw_interface_open == false)
-  {
-    while (*output != 0)
-    {
-      zucs_string_to_utf8_string(
-          output_char_buf,
-          &output,
-          NCURSESW_OUTPUT_CHAR_BUF_SIZE);
-
-      fputs(output_char_buf, stdout);
-    }
-    fflush(stdout);
-  }
-  else
-  {
-    ncursesw_setcchar_init_string[1] = L'\0';
-
-    while (*output != '\0')
-    {
-      ncursesw_setcchar_init_string[0] = *output;
-      //TRACE_LOG("%c/%d\n", *output, *output);
-
-      //errorcode =
-      setcchar(
-          &wcval,
-          ncursesw_setcchar_init_string,
-          ncursesw_no_attrs,
-          0,
-          NULL);
-
-      add_wch(&wcval);
-
-      output++;
+  if ( SDL_MUSTLOCK(Surf_Display) ) {
+    if ( SDL_LockSurface(Surf_Display) < 0 ) {
+      return;
     }
   }
-  */
+  switch (Surf_Display->format->BytesPerPixel) {
+    case 1: { /* Assuming 8-bpp */
+              Uint8 *bufp;
+
+              bufp = (Uint8 *)Surf_Display->pixels + y*Surf_Display->pitch + x;
+              *bufp = color;
+            }
+            break;
+
+    case 2: { /* Probably 15-bpp or 16-bpp */
+              Uint16 *bufp;
+
+              bufp = (Uint16 *)Surf_Display->pixels + y*Surf_Display->pitch/2 + x;
+              *bufp = color;
+            }
+            break;
+
+    case 3: { /* Slow 24-bpp mode, usually not used */
+              Uint8 *bufp;
+
+              bufp = (Uint8 *)Surf_Display->pixels + y*Surf_Display->pitch + x;
+              *(bufp+Surf_Display->format->Rshift/8) = pixel_value;
+              *(bufp+Surf_Display->format->Gshift/8) = pixel_value;
+              *(bufp+Surf_Display->format->Bshift/8) = pixel_value;
+            }
+            break;
+
+    case 4: { /* Probably 32-bpp */
+              Uint32 *bufp;
+
+              bufp = (Uint32 *)Surf_Display->pixels + y*Surf_Display->pitch/4 + x;
+              *bufp = color;
+            }
+            break;
+  }
+  if ( SDL_MUSTLOCK(Surf_Display) ) {
+    SDL_UnlockSurface(Surf_Display);
+  }
 }
 
 
 static bool is_input_timeout_available()
 {
   return true;
-}
-
-
-static void turn_on_input()
-{
-}
-
-
-static void turn_off_input()
-{
 }
 
 
@@ -437,7 +444,6 @@ static bool is_italic_available()
 }
 
 
-/*
 static void print_startup_syntax()
 {
   int i;
@@ -445,23 +451,23 @@ static void print_startup_syntax()
 
   streams_latin1_output("\n");
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_USAGE_DESCRIPTION);
+      fizmo_sdl_module_name,
+      i18n_sdl_USAGE_DESCRIPTION);
   streams_latin1_output("\n\n");
 
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_FIZMO_NCURSESW_VERSION_P0S, FIZMO_NCURSESW_VERSION);
+      fizmo_sdl_module_name,
+      i18n_sdl_FIZMO_SDL_VERSION_P0S, FIZMO_SDL_VERSION);
   streams_latin1_output("\n");
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_LIBFIZMO_VERSION_P0S,
+      fizmo_sdl_module_name,
+      i18n_sdl_LIBFIZMO_VERSION_P0S,
       FIZMO_VERSION);
   streams_latin1_output("\n");
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_LIBCELLINTERFACE_VERSION_P0S,
-      get_screen_cell_interface_version());
+      fizmo_sdl_module_name,
+      i18n_sdl_LIBPIXELINTERFACE_VERSION_P0S,
+      get_screen_pixel_interface_version());
   streams_latin1_output("\n");
   if (active_sound_interface != NULL)
   {
@@ -471,18 +477,11 @@ static void print_startup_syntax()
     streams_latin1_output(active_sound_interface->get_interface_version());
     streams_latin1_output(".\n");
   }
-#ifdef ENABLE_X11_IMAGES
-  (void)i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_LIBDRILBO_VERSION_P0S,
-      get_drilbo_version());
-  (void)streams_latin1_output("\n");
-#endif //ENABLE_X11_IMAGES
   streams_latin1_output("\n");
 
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_LOCALES_AVAILIABLE);
+      fizmo_sdl_module_name,
+      i18n_sdl_LOCALES_AVAILIABLE);
   streams_latin1_output(" ");
 
   i = 0;
@@ -499,16 +498,16 @@ static void print_startup_syntax()
   streams_latin1_output(".\n");
 
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_LOCALE_SEARCH_PATH);
+      fizmo_sdl_module_name,
+      i18n_sdl_LOCALE_SEARCH_PATH);
   streams_latin1_output(": ");
   streams_latin1_output(
       get_i18n_default_search_path());
   streams_latin1_output(".\n");
 
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_COLORS_AVAILABLE);
+      fizmo_sdl_module_name,
+      i18n_sdl_COLORS_AVAILABLE);
   streams_latin1_output(": ");
 
   for (i=Z_COLOUR_BLACK; i<=Z_COLOUR_WHITE; i++)
@@ -520,185 +519,140 @@ static void print_startup_syntax()
   streams_latin1_output(".\n\n");
 
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_VALID_OPTIONS_ARE);
+      fizmo_sdl_module_name,
+      i18n_sdl_VALID_OPTIONS_ARE);
   streams_latin1_output("\n");
 
   streams_latin1_output( " -l,  --set-locale: ");
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_SET_LOCALE_NAME_FOR_INTERPRETER_MESSAGES);
+      fizmo_sdl_module_name,
+      i18n_sdl_SET_LOCALE_NAME_FOR_INTERPRETER_MESSAGES);
   streams_latin1_output("\n");
 
   streams_latin1_output( " -pr, --predictable: ");
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_START_WITH_RANDOM_GENERATOR_IN_PREDICTABLE_MODE);
+      fizmo_sdl_module_name,
+      i18n_sdl_START_WITH_RANDOM_GENERATOR_IN_PREDICTABLE_MODE);
   streams_latin1_output("\n");
 
   streams_latin1_output( " -ra, --random: ");
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_START_WITH_RANDOM_GENERATOR_IN_RANDOM_MODE);
+      fizmo_sdl_module_name,
+      i18n_sdl_START_WITH_RANDOM_GENERATOR_IN_RANDOM_MODE);
   streams_latin1_output("\n");
 
   streams_latin1_output( " -st, --start-transcript: ");
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_START_GAME_WITH_TRANSCRIPT_ENABLED);
+      fizmo_sdl_module_name,
+      i18n_sdl_START_GAME_WITH_TRANSCRIPT_ENABLED);
   streams_latin1_output("\n");
 
   streams_latin1_output( " -tf, --transcript-filename: ");
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_SET_TRANSCRIPT_FILENAME);
+      fizmo_sdl_module_name,
+      i18n_sdl_SET_TRANSCRIPT_FILENAME);
   streams_latin1_output("\n");
 
   streams_latin1_output( " -rc, --record-commands: ");
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_START_GAME_WITH_RECORDING_COMMANDS);
+      fizmo_sdl_module_name,
+      i18n_sdl_START_GAME_WITH_RECORDING_COMMANDS);
   streams_latin1_output("\n");
 
   streams_latin1_output( " -fi, --start-file-input: ");
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_START_GAME_WITH_INPUT_FROM_FILE);
+      fizmo_sdl_module_name,
+      i18n_sdl_START_GAME_WITH_INPUT_FROM_FILE);
   streams_latin1_output("\n");
 
   streams_latin1_output( " -if, --input-filename: ");
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_FILENAME_TO_READ_COMMANDS_FROM);
+      fizmo_sdl_module_name,
+      i18n_sdl_FILENAME_TO_READ_COMMANDS_FROM);
   streams_latin1_output("\n");
 
   streams_latin1_output( " -rf, --record-filename: ");
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_FILENAME_TO_RECORD_INPUT_TO);
+      fizmo_sdl_module_name,
+      i18n_sdl_FILENAME_TO_RECORD_INPUT_TO);
   streams_latin1_output("\n");
 
   streams_latin1_output( " -f,  --foreground-color: ");
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_SET_FOREGROUND_COLOR);
+      fizmo_sdl_module_name,
+      i18n_sdl_SET_FOREGROUND_COLOR);
   streams_latin1_output("\n");
 
   streams_latin1_output( " -b,  --background-color: ");
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_SET_BACKGROUND_COLOR);
+      fizmo_sdl_module_name,
+      i18n_sdl_SET_BACKGROUND_COLOR);
   streams_latin1_output("\n");
 
   streams_latin1_output( " -nc, --dont-use-colors: ");
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_DONT_USE_COLORS);
+      fizmo_sdl_module_name,
+      i18n_sdl_DONT_USE_COLORS);
   streams_latin1_output("\n");
 
   streams_latin1_output( " -ec, --enable-colors: ");
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_ENABLE_COLORS);
+      fizmo_sdl_module_name,
+      i18n_sdl_ENABLE_COLORS);
   streams_latin1_output("\n");
 
   streams_latin1_output( " -lm, --left-margin: " );
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_SET_LEFT_MARGIN_SIZE);
+      fizmo_sdl_module_name,
+      i18n_sdl_SET_LEFT_MARGIN_SIZE);
   streams_latin1_output("\n");
 
   streams_latin1_output( " -rm, --right-margin: " );
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_SET_RIGHT_MARGIN_SIZE);
+      fizmo_sdl_module_name,
+      i18n_sdl_SET_RIGHT_MARGIN_SIZE);
   streams_latin1_output("\n");
 
   streams_latin1_output( " -um, --umem: ");
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_USE_UMEM_FOR_SAVEGAMES);
+      fizmo_sdl_module_name,
+      i18n_sdl_USE_UMEM_FOR_SAVEGAMES);
   streams_latin1_output("\n");
 
   streams_latin1_output( " -dh, --disable-hyphenation: ");
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_DISABLE_HYPHENATION);
+      fizmo_sdl_module_name,
+      i18n_sdl_DISABLE_HYPHENATION);
   streams_latin1_output("\n");
-
-#ifdef ENABLE_X11_IMAGES
-  streams_latin1_output( " -nx, --disable-x11-graphics: ");
-  i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_DISABLE_X11_GRAPHICS);
-  streams_latin1_output("\n");
-
-  streams_latin1_output( " -xi, --enable-x11-inline-graphics: ");
-  i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_ENABLE_X11_INLINE_GRAPHICS);
-  streams_latin1_output("\n");
-
-  streams_latin1_output( " -xt, --enable-xterm-title: ");
-  i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_USE_XTERM_TITLE);
-  streams_latin1_output("\n");
-#endif //ENABLE_X11_IMAGES
 
   streams_latin1_output( " -ds, --disable-sound: ");
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_DISABLE_SOUND);
+      fizmo_sdl_module_name,
+      i18n_sdl_DISABLE_SOUND);
   streams_latin1_output("\n");
 
   streams_latin1_output( " -t,  --set-tandy-flag: ");
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_SET_TANDY_FLAG);
-  streams_latin1_output("\n");
-
-  streams_latin1_output( " -nu, --dont-update-story-list: " );
-  i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_DONT_UPDATE_STORY_LIST_ON_START);
-  streams_latin1_output("\n");
-
-  streams_latin1_output( " -u,  --update-story-list: " );
-  i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_UPDATE_STORY_LIST_ON_START);
-  streams_latin1_output("\n");
-
-  streams_latin1_output( " -s,  --search: " );
-  i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_SEARCH_DIRECTORY);
-  streams_latin1_output("\n");
-
-  streams_latin1_output( " -rs, --recursively-search: ");
-  i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_RECURSIVELY_SEARCH_DIRECTORY);
+      fizmo_sdl_module_name,
+      i18n_sdl_SET_TANDY_FLAG);
   streams_latin1_output("\n");
 
   streams_latin1_output( " -sy, --sync-transcript: ");
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_SYNC_TRANSCRIPT);
+      fizmo_sdl_module_name,
+      i18n_sdl_SYNC_TRANSCRIPT);
   streams_latin1_output("\n");
 
   streams_latin1_output( " -h,  --help: ");
   i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_SHOW_HELP_MESSAGE_AND_EXIT);
+      fizmo_sdl_module_name,
+      i18n_sdl_SHOW_HELP_MESSAGE_AND_EXIT);
   streams_latin1_output("\n");
 
   //set_configuration_value("locale", fizmo_locale, "fizmo");
 
   streams_latin1_output("\n");
 }
-*/
 
 
 static int parse_config_parameter(char *UNUSED(key), char *UNUSED(value))
@@ -984,8 +938,8 @@ static short get_color_pair(z_colour z_foreground_colour,
         curses_foreground_color,
         curses_background_color) == ERR)
     i18n_translate_and_exit(
-        fizmo_ncursesw_module_name,
-        i18n_ncursesw_FUNCTION_CALL_P0S_ABORTED_DUE_TO_ERROR,
+        fizmo_sdl_module_name,
+        i18n_sdl_FUNCTION_CALL_P0S_ABORTED_DUE_TO_ERROR,
         -0x2000,
         "init_pair");
 
@@ -1056,8 +1010,8 @@ static void set_colour(z_colour UNUSED(foreground), z_colour UNUSED(background))
       return;
     else
       i18n_translate_and_exit(
-          fizmo_ncursesw_module_name,
-          i18n_ncursesw_FUNCTION_CALL_P0S_ABORTED_DUE_TO_ERROR,
+          fizmo_sdl_module_name,
+          i18n_sdl_FUNCTION_CALL_P0S_ABORTED_DUE_TO_ERROR,
           -1,
           "curses_if_get_color_pair");
   }
@@ -1066,8 +1020,8 @@ static void set_colour(z_colour UNUSED(foreground), z_colour UNUSED(background))
 
   if (color_set(color_pair_number, NULL) == ERR)
     i18n_translate_and_exit(
-        fizmo_ncursesw_module_name,
-        i18n_ncursesw_FUNCTION_CALL_P0S_ABORTED_DUE_TO_ERROR,
+        fizmo_sdl_module_name,
+        i18n_sdl_FUNCTION_CALL_P0S_ABORTED_DUE_TO_ERROR,
         -0x2052,
         "color_set");
 
@@ -1111,8 +1065,8 @@ static void setup_x11_callback()
 
   if (pipe(x11_signalling_pipe) != 0)
     i18n_translate_and_exit(
-        fizmo_ncursesw_module_name,
-        i18n_ncursesw_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
+        fizmo_sdl_module_name,
+        i18n_sdl_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
         -0x2016,
         "pipe",
         errno,
@@ -1120,8 +1074,8 @@ static void setup_x11_callback()
 
   if ((flags = fcntl(x11_signalling_pipe[0], F_GETFL, 0)) == -1)
     i18n_translate_and_exit(
-        fizmo_ncursesw_module_name,
-        i18n_ncursesw_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
+        fizmo_sdl_module_name,
+        i18n_sdl_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
         -0x2018,
         "fcntl / F_GETFL",
         errno,
@@ -1129,8 +1083,8 @@ static void setup_x11_callback()
 
   if ((fcntl(x11_signalling_pipe[0], F_SETFL, flags|O_NONBLOCK)) == -1)
     i18n_translate_and_exit(
-        fizmo_ncursesw_module_name,
-        i18n_ncursesw_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
+        fizmo_sdl_module_name,
+        i18n_sdl_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
         -0x2018,
         "fcntl / F_SETFL",
         errno,
@@ -1138,8 +1092,8 @@ static void setup_x11_callback()
 
   if ((flags = fcntl(STDIN_FILENO, F_GETFL, 0)) == -1)
     i18n_translate_and_exit(
-        fizmo_ncursesw_module_name,
-        i18n_ncursesw_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
+        fizmo_sdl_module_name,
+        i18n_sdl_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
         -0x2018,
         "fcntl / F_GETFL",
         errno,
@@ -1147,8 +1101,8 @@ static void setup_x11_callback()
 
   if ((fcntl(STDIN_FILENO, F_SETFL, flags|O_NONBLOCK)) == -1)
     i18n_translate_and_exit(
-        fizmo_ncursesw_module_name,
-        i18n_ncursesw_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
+        fizmo_sdl_module_name,
+        i18n_sdl_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
         -0x2018,
         "fcntl / F_SETFL",
         errno,
@@ -1247,8 +1201,15 @@ static int display_X11_image_window(int image_no)
 */
 
 
-static void link_interface_to_story(struct z_story *UNUSED(story))
+static void link_interface_to_story(struct z_story *story)
 {
+  SDL_FillRect(
+      Surf_Display,
+      &Surf_Display->clip_rect,
+      z_to_sdl_colour(screen_default_background_color));
+
+  SDL_WM_SetCaption(story->title, story->title);
+
   /*
   int flags;
   int frontispiece_resource_number;
@@ -1260,20 +1221,20 @@ static void link_interface_to_story(struct z_story *UNUSED(story))
 
   // Create a new signalling pipe. This pipe is used by a select call to
   // detect an incoming time-signal for the input routine.
-  if (pipe(ncursesw_if_signalling_pipe) != 0)
+  if (pipe(sdl_if_signalling_pipe) != 0)
     i18n_translate_and_exit(
-        fizmo_ncursesw_module_name,
-        i18n_ncursesw_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
+        fizmo_sdl_module_name,
+        i18n_sdl_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
         -0x2016,
         "pipe",
         errno,
         strerror(errno));
 
   // Get the current flags for the read-end of the pipe.
-  if ((flags = fcntl(ncursesw_if_signalling_pipe[0], F_GETFL, 0)) == -1)
+  if ((flags = fcntl(sdl_if_signalling_pipe[0], F_GETFL, 0)) == -1)
     i18n_translate_and_exit(
-        fizmo_ncursesw_module_name,
-        i18n_ncursesw_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
+        fizmo_sdl_module_name,
+        i18n_sdl_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
         -0x2017,
         "fcntl / F_GETFL",
         errno,
@@ -1281,10 +1242,10 @@ static void link_interface_to_story(struct z_story *UNUSED(story))
 
   // Add the nonblocking flag the read-end of the pipe, thus making incoming
   // input "visible" at once without having to wait for a newline.
-  if ((fcntl(ncursesw_if_signalling_pipe[0], F_SETFL, flags|O_NONBLOCK)) == -1)
+  if ((fcntl(sdl_if_signalling_pipe[0], F_SETFL, flags|O_NONBLOCK)) == -1)
     i18n_translate_and_exit(
-        fizmo_ncursesw_module_name,
-        i18n_ncursesw_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
+        fizmo_sdl_module_name,
+        i18n_sdl_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
         -0x2018,
         "fcntl / F_SETFL",
         errno,
@@ -1293,7 +1254,7 @@ static void link_interface_to_story(struct z_story *UNUSED(story))
   max_nof_color_pairs = story->max_nof_color_pairs;
   color_initialized = false;
 
-  ncursesw_interface_open = true;
+  sdl_interface_open = true;
 
   if (
       (active_z_story->title != NULL)
@@ -1343,12 +1304,12 @@ static int sdl_close_interface(z_ucs *UNUSED(error_message))
 
   TRACE_LOG("Closing signalling pipes.\n");
 
-  close(ncursesw_if_signalling_pipe[1]);
-  close(ncursesw_if_signalling_pipe[0]);
+  close(sdl_if_signalling_pipe[1]);
+  close(sdl_if_signalling_pipe[0]);
 
   endwin();
 
-  ncursesw_interface_open = false;
+  sdl_interface_open = false;
 
   if (error_message != NULL)
   {
@@ -1358,9 +1319,9 @@ static int sdl_close_interface(z_ucs *UNUSED(error_message))
       ptr = z_ucs_string_to_wchar_t(
           wchar_t_buf,
           ptr,
-          NCURSESW_WCHAR_T_BUF_SIZE);
+          SDL_WCHAR_T_BUF_SIZE);
 
-      ncursesw_fputws(wchar_t_buf, stderr);
+      sdl_fputws(wchar_t_buf, stderr);
     }
   }
 
@@ -1373,7 +1334,7 @@ static int sdl_close_interface(z_ucs *UNUSED(error_message))
 
 
 /*
-static attr_t ncursesw_z_style_to_attr_t(int16_t style_data)
+static attr_t sdl_z_style_to_attr_t(int16_t style_data)
 {
   attr_t result = A_NORMAL;
 
@@ -1404,13 +1365,13 @@ static void set_text_style(z_style UNUSED(style_data))
 
   TRACE_LOG("Output style, style_data %d.\n", style_data);
 
-  attrs = ncursesw_z_style_to_attr_t(style_data);
+  attrs = sdl_z_style_to_attr_t(style_data);
 
   if ((int)attrset(attrs) == ERR)
   {
     i18n_translate_and_exit(
-        fizmo_ncursesw_module_name,
-        i18n_ncursesw_FUNCTION_CALL_P0S_ABORTED_DUE_TO_ERROR,
+        fizmo_sdl_module_name,
+        i18n_sdl_FUNCTION_CALL_P0S_ABORTED_DUE_TO_ERROR,
         -0x2fff,
         "wattrset");
   }
@@ -1427,14 +1388,14 @@ static void output_interface_info()
 {
   /*
   (void)i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_FIZMO_NCURSESW_VERSION_P0S,
-      FIZMO_NCURSESW_VERSION);
+      fizmo_sdl_module_name,
+      i18n_sdl_FIZMO_SDL_VERSION_P0S,
+      FIZMO_SDL_VERSION);
   (void)streams_latin1_output("\n");
 #ifdef ENABLE_X11_IMAGES
   (void)i18n_translate(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_LIBDRILBO_VERSION_P0S,
+      fizmo_sdl_module_name,
+      i18n_sdl_LIBDRILBO_VERSION_P0S,
       get_drilbo_version());
   (void)streams_latin1_output("\n");
 #endif //ENABLE_X11_IMAGES
@@ -1447,60 +1408,50 @@ static void refresh_screen_size()
 {
   getmaxyx(
       stdscr,
-      ncursesw_interface_screen_height,
-      ncursesw_interface_screen_width);
+      sdl_interface_screen_height,
+      sdl_interface_screen_width);
 }
 */
 
 
 static int get_screen_width()
 {
-  return 80;
-  /*
-  if (ncursesw_interface_screen_width == -1)
-    refresh_screen_size();
-  return ncursesw_interface_screen_width;
-  */
+  return sdl_interface_screen_width;
 }
 
 
 static int get_screen_height()
 {
-  return 25;
-  /*
-  if (ncursesw_interface_screen_height == -1)
-    refresh_screen_size();
-  return ncursesw_interface_screen_height;
-  */
+  return sdl_interface_screen_height;
 }
 
 
 /*
-static void ncursesw_if_catch_signal(int sig_num)
+static void sdl_if_catch_signal(int sig_num)
 {
   int bytes_written = 0;
   int ret_val;
-  int ncursesw_if_write_buffer;
+  int sdl_if_write_buffer;
 
   // Note:
   // I think TRACE_LOGs in this function may cause a deadlock in case
   // they're called while a fflush for the tracelog is already underway.
 
-  ncursesw_if_write_buffer = sig_num;
+  sdl_if_write_buffer = sig_num;
 
   //TRACE_LOG("Caught signal %d.\n", sig_num);
 
   while ((size_t)bytes_written < sizeof(int))
   {
     ret_val = write(
-        ncursesw_if_signalling_pipe[1],
-        &ncursesw_if_write_buffer,
+        sdl_if_signalling_pipe[1],
+        &sdl_if_write_buffer,
         sizeof(int));
 
     if (ret_val == -1)
       i18n_translate_and_exit(
-          fizmo_ncursesw_module_name,
-          i18n_ncursesw_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
+          fizmo_sdl_module_name,
+          i18n_sdl_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
           -0x2023,
           "write",
           errno,
@@ -1514,15 +1465,41 @@ static void ncursesw_if_catch_signal(int sig_num)
 */
 
 
-static int get_next_event(z_ucs *UNUSED(z_ucs_input), int UNUSED(timeout_millis))
+static int get_next_event(z_ucs *z_ucs_input, int timeout_millis)
 {
-  exit(-1);
+  bool running = true;
+  SDL_Event Event;
+  int result = -1;
+
+  if (timeout_millis > 0) {
+    TRACE_LOG("input timeout: %d ms. (%d/%d)\n", timeout_millis,
+        timeout_millis - (timeout_millis % 1000), 
+        (timeout_millis % 1000) * 1000);
+    //SDL_AddTimer -> SDL_PushEvent
+  }
+
+  while (running) {
+    while (SDL_PollEvent(&Event)) {
+      if (Event.type == SDL_QUIT) {
+        running = false;
+      }
+      else if (Event.type == SDL_KEYDOWN) {
+        result = EVENT_WAS_INPUT;
+        *z_ucs_input = Event.key.keysym.unicode;
+        running = false;
+      }
+      else if (Event.type == SDL_VIDEORESIZE) {
+        // User requested screen resize.
+      }
+    }
+  }
+
+  return result;
 
   /*
   int max_filedes_number_plus_1;
   int select_retval;
   fd_set input_selectors;
-  int result = -1;
   int input_return_code;
   bool input_should_terminate = false;
   int bytes_read;
@@ -1533,11 +1510,11 @@ static int get_next_event(z_ucs *UNUSED(z_ucs_input), int UNUSED(timeout_millis)
 
   FD_ZERO(&input_selectors);
   FD_SET(STDIN_FILENO, &input_selectors);
-  FD_SET(ncursesw_if_signalling_pipe[0], &input_selectors);
+  FD_SET(sdl_if_signalling_pipe[0], &input_selectors);
 
   max_filedes_number_plus_1
-    = (STDIN_FILENO < ncursesw_if_signalling_pipe[0]
-        ? ncursesw_if_signalling_pipe[0]
+    = (STDIN_FILENO < sdl_if_signalling_pipe[0]
+        ? sdl_if_signalling_pipe[0]
         : STDIN_FILENO) + 1;
 
   if (timeout_millis > 0)
@@ -1558,7 +1535,7 @@ static int get_next_event(z_ucs *UNUSED(z_ucs_input), int UNUSED(timeout_millis)
 
     FD_ZERO(&input_selectors);
     FD_SET(STDIN_FILENO, &input_selectors);
-    FD_SET(ncursesw_if_signalling_pipe[0], &input_selectors);
+    FD_SET(sdl_if_signalling_pipe[0], &input_selectors);
 
     select_retval = select(
         max_filedes_number_plus_1,
@@ -1617,7 +1594,7 @@ static int get_next_event(z_ucs *UNUSED(z_ucs_input), int UNUSED(timeout_millis)
 
         input_should_terminate = true;
       }
-      else if (FD_ISSET(ncursesw_if_signalling_pipe[0], &input_selectors))
+      else if (FD_ISSET(sdl_if_signalling_pipe[0], &input_selectors))
       {
         TRACE_LOG("current errno: %d.\n", errno);
         // the signal handler has written to our curses_if_signalling_pipe.
@@ -1631,7 +1608,7 @@ static int get_next_event(z_ucs *UNUSED(z_ucs_input), int UNUSED(timeout_millis)
         while (bytes_read != sizeof(int))
         {
           read_retval = read(
-              ncursesw_if_signalling_pipe[0],
+              sdl_if_signalling_pipe[0],
               &new_signal,
               sizeof(int));
 
@@ -1645,8 +1622,8 @@ static int get_next_event(z_ucs *UNUSED(z_ucs_input), int UNUSED(timeout_millis)
             else
             {
               i18n_translate_and_exit(
-                  fizmo_ncursesw_module_name,
-                  i18n_ncursesw_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
+                  fizmo_sdl_module_name,
+                  i18n_sdl_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
                   -0x2041,
                   "read",
                   errno,
@@ -1686,8 +1663,8 @@ static int get_next_event(z_ucs *UNUSED(z_ucs_input), int UNUSED(timeout_millis)
         else
         {
           i18n_translate_and_exit(
-              fizmo_ncursesw_module_name,
-              i18n_ncursesw_UNKNOWN_ERROR_CASE,
+              fizmo_sdl_module_name,
+              i18n_sdl_UNKNOWN_ERROR_CASE,
               -0x2041);
         }
       }
@@ -1714,11 +1691,9 @@ static int get_next_event(z_ucs *UNUSED(z_ucs_input), int UNUSED(timeout_millis)
 
 void update_screen()
 {
-  /*
-  TRACE_LOG("refresh errno: %d.\n", errno);
-  refresh();
-  TRACE_LOG("refresh errno: %d.\n", errno);
-  */
+  TRACE_LOG("Doing update_screen().\n");
+  //SDL_UpdateRect(Surf_Display, 0, 0, 0, 0);
+  SDL_Flip(Surf_Display);
 }
 
 
@@ -1752,8 +1727,8 @@ void copy_area(int UNUSED(dsty), int UNUSED(dstx), int UNUSED(srcy), int UNUSED(
   if ( (width < 0) || (height < 0) )
   {
     i18n_translate_and_exit(
-        fizmo_ncursesw_module_name,
-        i18n_ncursesw_FUNCTION_CALL_P0S_ABORTED_DUE_TO_ERROR,
+        fizmo_sdl_module_name,
+        i18n_sdl_FUNCTION_CALL_P0S_ABORTED_DUE_TO_ERROR,
         -0x2000,
         "copy_area");
   }
@@ -1828,7 +1803,7 @@ void clear_area(int UNUSED(startx), int UNUSED(starty), int UNUSED(xsize), int U
 static void set_cursor_visibility(bool UNUSED(visible))
 {
   /*
-  if (ncursesw_interface_open == true)
+  if (sdl_interface_open == true)
   {
     if (visible == true)
       curs_set(1);
@@ -1853,11 +1828,8 @@ static z_colour get_default_background_colour()
 
 static struct z_screen_pixel_interface sdl_interface =
 {
-  &goto_yx,
-  &z_ucs_output,
+  &draw_grayscale_pixel,
   &is_input_timeout_available,
-  &turn_on_input,
-  &turn_off_input,
   &get_next_event,
   &get_interface_name,
   &is_colour_available,
@@ -1927,11 +1899,11 @@ static char *select_story_from_menu()
 
   if ( (story_list == NULL) || (story_list->nof_entries < 1) )
   {
-    //set_configuration_value("locale", fizmo_locale, "ncursesw");
+    //set_configuration_value("locale", fizmo_locale, "sdl");
     streams_latin1_output("\n");
     i18n_translate(
-        fizmo_ncursesw_module_name,
-        i18n_ncursesw_NO_STORIES_REGISTERED_PLUS_HELP);
+        fizmo_sdl_module_name,
+        i18n_sdl_NO_STORIES_REGISTERED_PLUS_HELP);
     streams_latin1_output("\n\n");
     //set_configuration_value("locale", fizmo_locale, "fizmo");
     return NULL;
@@ -1940,7 +1912,7 @@ static char *select_story_from_menu()
 
   sigemptyset(&default_sigaction.sa_mask);
   default_sigaction.sa_flags = 0;
-  default_sigaction.sa_handler = &ncursesw_if_catch_signal;
+  default_sigaction.sa_handler = &sdl_if_catch_signal;
   sigaction(SIGWINCH, &default_sigaction, NULL);
 
   infowin_output_wordwrapper = wordwrap_new_wrapper(
@@ -1953,11 +1925,11 @@ static char *select_story_from_menu()
       true);
 
   infowin_more = i18n_translate_to_string(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_SPACE_FOR_NEXT_PAGE);
+      fizmo_sdl_module_name,
+      i18n_sdl_SPACE_FOR_NEXT_PAGE);
   infowin_back = i18n_translate_to_string(
-      fizmo_ncursesw_module_name,
-      i18n_ncursesw_B_FOR_LAST_PAGE);
+      fizmo_sdl_module_name,
+      i18n_sdl_B_FOR_LAST_PAGE);
 
   while (input_done == false)
   {
@@ -2015,8 +1987,8 @@ static char *select_story_from_menu()
 
     attrset(A_BOLD);
     mvprintw(1, storywin_x + 7,
-        "fizmo-ncursesw Z-Machine interpreter, Version %s\n",
-        FIZMO_NCURSESW_VERSION);
+        "fizmo-sdl Z-Machine interpreter, Version %s\n",
+        FIZMO_SDL_VERSION);
     attrset(A_NORMAL);
 
     i = 0;
@@ -2077,12 +2049,12 @@ static char *select_story_from_menu()
         ptr = z_ucs_string_to_wchar_t(
             wchar_t_buf,
             ptr,
-            NCURSESW_WCHAR_T_BUF_SIZE);
+            SDL_WCHAR_T_BUF_SIZE);
 
         if (waddwstr(infowin, wchar_t_buf) == ERR)
           i18n_translate_and_exit(
-              fizmo_ncursesw_module_name,
-              i18n_ncursesw_FUNCTION_CALL_P0S_ABORTED_DUE_TO_ERROR,
+              fizmo_sdl_module_name,
+              i18n_sdl_FUNCTION_CALL_P0S_ABORTED_DUE_TO_ERROR,
               -1,
               "waddwstr");
       }
@@ -2097,7 +2069,7 @@ static char *select_story_from_menu()
     do
     {
       src = utf8_string_to_zucs_string(
-          z_ucs_t_buf, src, NCURSESW_Z_UCS_BUF_SIZE);
+          z_ucs_t_buf, src, SDL_Z_UCS_BUF_SIZE);
       wordwrap_wrap_z_ucs(infowin_output_wordwrapper, z_ucs_t_buf);
     }
     while (src != NULL);
@@ -2107,13 +2079,13 @@ static char *select_story_from_menu()
     //wrefresh(infowin);
 
     max_filedes_number_plus_1
-      = (STDIN_FILENO < ncursesw_if_signalling_pipe[0]
-          ? ncursesw_if_signalling_pipe[0]
+      = (STDIN_FILENO < sdl_if_signalling_pipe[0]
+          ? sdl_if_signalling_pipe[0]
           : STDIN_FILENO) + 1;
 
     FD_ZERO(&input_selectors);
     FD_SET(STDIN_FILENO, &input_selectors);
-    FD_SET(ncursesw_if_signalling_pipe[0], &input_selectors);
+    FD_SET(sdl_if_signalling_pipe[0], &input_selectors);
 
     select_retval = select(
         max_filedes_number_plus_1,
@@ -2200,7 +2172,7 @@ static char *select_story_from_menu()
         while (bytes_read != sizeof(int))
         {
           read_retval = read(
-              ncursesw_if_signalling_pipe[0],
+              sdl_if_signalling_pipe[0],
               &new_signal, 
               sizeof(int));
 
@@ -2214,8 +2186,8 @@ static char *select_story_from_menu()
             else
             {
               i18n_translate_and_exit(
-                  fizmo_ncursesw_module_name,
-                  i18n_ncursesw_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
+                  fizmo_sdl_module_name,
+                  i18n_sdl_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
                   -0x2041,
                   "read",
                   errno,
@@ -2242,8 +2214,8 @@ static char *select_story_from_menu()
         errno = 0;
       else
         i18n_translate_and_exit(
-            fizmo_ncursesw_module_name,
-            i18n_ncursesw_ERROR_P0D_OCCURED_BEFORE_READ_P1S,
+            fizmo_sdl_module_name,
+            i18n_sdl_ERROR_P0D_OCCURED_BEFORE_READ_P1S,
             -0x203c,
             errno,
             strerror(errno));
@@ -2273,27 +2245,27 @@ void catch_signal(int sig_num)
 {
   int bytes_written = 0;
   int ret_val;
-  int ncursesw_if_write_buffer;
+  int sdl_if_write_buffer;
 
   // Note:
   // Look like TRACE_LOGs in this function may cause a deadlock in case
   // they're called while a fflush for the tracelog is already underway.
 
-  ncursesw_if_write_buffer = sig_num;
+  sdl_if_write_buffer = sig_num;
 
   //TRACE_LOG("Caught signal %d.\n", sig_num);
 
   while ((size_t)bytes_written < sizeof(int))
   {
     ret_val = write(
-        ncursesw_if_signalling_pipe[1],
-        &ncursesw_if_write_buffer,
+        sdl_if_signalling_pipe[1],
+        &sdl_if_write_buffer,
         sizeof(int));
 
     if (ret_val == -1)
       i18n_translate_and_exit(
-          fizmo_ncursesw_module_name,
-          i18n_ncursesw_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
+          fizmo_sdl_module_name,
+          i18n_sdl_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
           -0x2023,
           "write",
           errno,
@@ -2309,18 +2281,19 @@ void catch_signal(int sig_num)
 
 int main(int argc, char *argv[])
 {
-  /*
   int argi = 1;
   int story_filename_parameter_number = -1;
   int blorb_filename_parameter_number = -1;
   char *input_file;
-  z_file *savegame_to_restore= NULL;
   z_file *story_stream = NULL, *blorb_stream = NULL;
-  int flags;
+  z_colour new_color;
   int int_value;
+  z_file *savegame_to_restore= NULL;
+
+  /*
+  int flags;
   char *cwd = NULL;
   char *absdirname = NULL;
-  z_colour new_color;
 #ifndef DISABLE_FILELIST
   char *story_to_load_filename, *assumed_filename;
   struct z_story_list *story_list;
@@ -2335,7 +2308,7 @@ int main(int argc, char *argv[])
   setlocale(LC_ALL, "C");
   setlocale(LC_CTYPE, "");
 
-  fizmo_register_screen_cell_interface(&ncursesw_interface);
+  fizmo_register_screen_cell_interface(&sdl_interface);
 
 #ifdef SOUND_INTERFACE_STRUCT_NAME
   fizmo_register_sound_interface(&SOUND_INTERFACE_STRUCT_NAME);
@@ -2348,8 +2321,8 @@ int main(int argc, char *argv[])
   parse_fizmo_config_files();
 #endif // DISABLE_CONFIGFILES
 
-  ncursesw_argc = argc;
-  ncursesw_argv = argv;
+  sdl_argc = argc;
+  sdl_argv = argv;
 
   while (argi < argc)
   {
@@ -2367,8 +2340,8 @@ int main(int argc, char *argv[])
         streams_latin1_output("\n");
 
         i18n_translate(
-            fizmo_ncursesw_module_name,
-            i18n_ncursesw_INVALID_CONFIGURATION_VALUE_P0S_FOR_P1S,
+            fizmo_sdl_module_name,
+            i18n_sdl_INVALID_CONFIGURATION_VALUE_P0S_FOR_P1S,
             argv[argi],
             "locale");
 
@@ -2589,8 +2562,8 @@ int main(int argc, char *argv[])
          )
       {
         i18n_translate(
-            fizmo_ncursesw_module_name,
-            i18n_ncursesw_INVALID_CONFIGURATION_VALUE_P0S_FOR_P1S,
+            fizmo_sdl_module_name,
+            i18n_sdl_INVALID_CONFIGURATION_VALUE_P0S_FOR_P1S,
             argv[argi],
             argv[argi - 1]);
 
@@ -2804,8 +2777,8 @@ int main(int argc, char *argv[])
   if (story_stream == NULL)
   {
     i18n_translate_and_exit(
-        fizmo_ncursesw_module_name,
-        i18n_ncursesw_COULD_NOT_OPEN_OR_FIND_P0S,
+        fizmo_sdl_module_name,
+        i18n_sdl_COULD_NOT_OPEN_OR_FIND_P0S,
         -0x2016,
         input_file);
     exit(EXIT_FAILURE);
@@ -2821,20 +2794,20 @@ int main(int argc, char *argv[])
 
   // Create a new signalling pipe. This pipe is used by a select call to
   // detect an incoming time-signal for the input routine.
-  if (pipe(ncursesw_if_signalling_pipe) != 0)
+  if (pipe(sdl_if_signalling_pipe) != 0)
     i18n_translate_and_exit(
-        fizmo_ncursesw_module_name,
-        i18n_ncursesw_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
+        fizmo_sdl_module_name,
+        i18n_sdl_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
         -0x2016,
         "pipe",
         errno,
         strerror(errno));
 
   // Get the current flags for the read-end of the pipe.
-  if ((flags = fcntl(ncursesw_if_signalling_pipe[0], F_GETFL, 0)) == -1)
+  if ((flags = fcntl(sdl_if_signalling_pipe[0], F_GETFL, 0)) == -1)
     i18n_translate_and_exit(
-        fizmo_ncursesw_module_name,
-        i18n_ncursesw_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
+        fizmo_sdl_module_name,
+        i18n_sdl_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
         -0x2017,
         "fcntl / F_GETFL",
         errno,
@@ -2842,10 +2815,10 @@ int main(int argc, char *argv[])
 
   // Add the nonblocking flag the read-end of the pipe, thus making incoming
   // input "visible" at once without having to wait for a newline.
-  if ((fcntl(ncursesw_if_signalling_pipe[0], F_SETFL, flags|O_NONBLOCK)) == -1)
+  if ((fcntl(sdl_if_signalling_pipe[0], F_SETFL, flags|O_NONBLOCK)) == -1)
     i18n_translate_and_exit(
-        fizmo_ncursesw_module_name,
-        i18n_ncursesw_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
+        fizmo_sdl_module_name,
+        i18n_sdl_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
         -0x2018,
         "fcntl / F_SETFL",
         errno,
@@ -2858,7 +2831,7 @@ int main(int argc, char *argv[])
 
   sigemptyset(&default_sigaction.sa_mask);
   default_sigaction.sa_flags = 0;
-  default_sigaction.sa_handler = &ncursesw_if_catch_signal;
+  default_sigaction.sa_handler = &sdl_if_catch_signal;
   sigaction(SIGWINCH, &default_sigaction, NULL);
 
   if (blorb_filename_parameter_number != -1)
@@ -2879,9 +2852,331 @@ int main(int argc, char *argv[])
 
   TRACE_LOG("Closing signalling pipes.\n");
 
-  close(ncursesw_if_signalling_pipe[1]);
-  close(ncursesw_if_signalling_pipe[0]);
+  close(sdl_if_signalling_pipe[1]);
+  close(sdl_if_signalling_pipe[0]);
   */
+
+  while (argi < argc)
+  {
+    if ((strcmp(argv[argi], "-l") == 0)
+        || (strcmp(argv[argi], "--set-locale") == 0))
+    {
+      if (++argi == argc)
+      {
+        print_startup_syntax();
+        exit(EXIT_FAILURE);
+      }
+
+      if (set_current_locale_name(argv[argi]) != 0)
+      {
+        streams_latin1_output("\n");
+
+        i18n_translate(
+            fizmo_sdl_module_name,
+            i18n_sdl_INVALID_CONFIGURATION_VALUE_P0S_FOR_P1S,
+            argv[argi],
+            "locale");
+
+        streams_latin1_output("\n");
+
+        print_startup_syntax();
+        exit(EXIT_FAILURE);
+      }
+
+      set_configuration_value("dont-set-locale-from-config", "true");
+      argi++;
+    }
+    else if ((strcmp(argv[argi], "-pr") == 0)
+        || (strcmp(argv[argi], "--predictable") == 0))
+    {
+      set_configuration_value("random-mode", "predictable");
+      argi += 1;
+    }
+    else if ((strcmp(argv[argi], "-ra") == 0)
+        || (strcmp(argv[argi], "--random") == 0))
+    {
+      set_configuration_value("random-mode", "random");
+      argi += 1;
+    }
+    else if ((strcmp(argv[argi], "-st") == 0)
+        || (strcmp(argv[argi], "--start-transcript") == 0))
+    {
+      set_configuration_value("start-script-when-story-starts", "true");
+      argi += 1;
+    }
+    else if ((strcmp(argv[argi], "-rc") == 0)
+        || (strcmp(argv[argi], "--start-recording-commands") == 0))
+    {
+      set_configuration_value(
+          "start-command-recording-when-story-starts", "true");
+      argi += 1;
+    }
+    else if ((strcmp(argv[argi], "-fi") == 0)
+        || (strcmp(argv[argi], "--start-file-input") == 0))
+    {
+      set_configuration_value(
+          "start-file-input-when-story-starts", "true");
+      argi += 1;
+    }
+    else if ((strcmp(argv[argi], "-if") == 0)
+        || (strcmp(argv[argi], "--input-filename") == 0))
+    {
+      if (++argi == argc)
+      {
+        print_startup_syntax();
+        exit(EXIT_FAILURE);
+      }
+      set_configuration_value(
+          "input-command-filename", argv[argi]);
+      argi += 1;
+    }
+    else if ((strcmp(argv[argi], "-rf") == 0)
+        || (strcmp(argv[argi], "--record-filename") == 0))
+    {
+      if (++argi == argc)
+      {
+        print_startup_syntax();
+        exit(EXIT_FAILURE);
+      }
+      set_configuration_value(
+          "record-command-filename", argv[argi]);
+      argi += 1;
+    }
+    else if ((strcmp(argv[argi], "-tf") == 0)
+        || (strcmp(argv[argi], "--transcript-filename") == 0))
+    {
+      if (++argi == argc)
+      {
+        print_startup_syntax();
+        exit(EXIT_FAILURE);
+      }
+      set_configuration_value(
+          "transcript-filename", argv[argi]);
+      argi += 1;
+    }
+    else if (
+        (strcmp(argv[argi], "-b") == 0)
+        || (strcmp(argv[argi], "--background-color") == 0) )
+    {
+      if (++argi == argc)
+      {
+        print_startup_syntax();
+        exit(EXIT_FAILURE);
+      }
+
+      if ((new_color = colorname_to_infocomcode(argv[argi])) == -1)
+      {
+        print_startup_syntax();
+        exit(EXIT_FAILURE);
+      }
+
+      screen_default_background_color = new_color;
+      argi++;
+    }
+    else if (
+        (strcmp(argv[argi], "-f") == 0)
+        || (strcmp(argv[argi], "--foreground-color") == 0) )
+    {
+      if (++argi == argc)
+      {
+        print_startup_syntax();
+        exit(EXIT_FAILURE);
+      }
+
+      if ((new_color = colorname_to_infocomcode(argv[argi])) == -1)
+      {
+        print_startup_syntax();
+        exit(EXIT_FAILURE);
+      }
+
+      screen_default_foreground_color = new_color;
+      argi++;
+    }
+    else if (
+        (strcmp(argv[argi], "-um") == 0)
+        ||
+        (strcmp(argv[argi], "--umem") == 0)
+        )
+    {
+      set_configuration_value("quetzal-umem", "true");
+      argi ++;
+    }
+    else if (
+        (strcmp(argv[argi], "-dh") == 0)
+        ||
+        (strcmp(argv[argi], "--disable-hyphenation") == 0)
+        )
+    {
+      set_configuration_value("disable-hyphenation", "true");
+      argi ++;
+    }
+    else if (
+        (strcmp(argv[argi], "-nc") == 0)
+        || (strcmp(argv[argi], "--dont-use-colors: ") == 0) )
+    {
+      set_configuration_value("disable-color", "true");
+      argi ++;
+    }
+    else if (
+        (strcmp(argv[argi], "-ec") == 0)
+        || (strcmp(argv[argi], "--enable-colors: ") == 0) )
+    {
+      set_configuration_value("enable-color", "true");
+      argi ++;
+    }
+    else if (
+        (strcmp(argv[argi], "-ds") == 0)
+        ||
+        (strcmp(argv[argi], "--disable-sound") == 0))
+    {
+      set_configuration_value("disable-sound", "true");
+      argi += 1;
+    }
+    else if (
+        (strcmp(argv[argi], "-t") == 0)
+        ||
+        (strcmp(argv[argi], "--set-tandy-flag") == 0))
+    {
+      set_configuration_value("set-tandy-flag", "true");
+      argi += 1;
+    }
+    else if (
+        (strcmp(argv[argi], "-lm") == 0)
+        ||
+        (strcmp(argv[argi], "-rm") == 0)
+        ||
+        (strcmp(argv[argi], "--left-margin") == 0)
+        ||
+        (strcmp(argv[argi], "--right-margin") == 0)
+        )
+    {
+      if (++argi == argc)
+      {
+        print_startup_syntax();
+        exit(EXIT_FAILURE);
+      }
+
+      int_value = atoi(argv[argi]);
+
+      if (
+          ( (int_value == 0) && (strcmp(argv[argi], "0") != 0) )
+          ||
+          (int_value < 0)
+         )
+      {
+        i18n_translate(
+            fizmo_sdl_module_name,
+            i18n_sdl_INVALID_CONFIGURATION_VALUE_P0S_FOR_P1S,
+            argv[argi],
+            argv[argi - 1]);
+
+        streams_latin1_output("\n");
+
+        print_startup_syntax();
+        exit(EXIT_FAILURE);
+      }
+
+      if (
+          (strcmp(argv[argi - 1], "-lm") == 0)
+          ||
+          (strcmp(argv[argi - 1], "--left-margin") == 0)
+         )
+        set_custom_left_pixel_margin(int_value);
+      else
+        set_custom_right_pixel_margin(int_value);
+
+      argi += 1;
+    }
+    else if (
+        (strcmp(argv[argi], "-h") == 0)
+        ||
+        (strcmp(argv[argi], "--help") == 0)
+        )
+    {
+      print_startup_syntax();
+      exit(0);
+    }
+    else if (
+        (strcmp(argv[argi], "-sy") == 0)
+        ||
+        (strcmp(argv[argi], "--sync-transcript") == 0))
+    {
+      set_configuration_value("sync-transcript", "true");
+      argi += 1;
+    }
+    else if (story_filename_parameter_number == -1)
+    {
+      story_filename_parameter_number = argi;
+      argi++;
+    }
+    else if (blorb_filename_parameter_number == -1)
+    {
+      blorb_filename_parameter_number = argi;
+      argi++;
+    }
+    else
+    {
+      // Unknown parameter:
+      print_startup_syntax();
+      exit(EXIT_FAILURE);
+    }
+  }
+
+  if (story_filename_parameter_number == -1)
+  {
+    return -1;
+  }
+  else
+  {
+    // The user has given some filename or description name on the command line.
+    input_file = argv[story_filename_parameter_number];
+
+      // Check if parameter is a valid filename.
+    story_stream = fsi->openfile(
+        input_file, FILETYPE_DATA, FILEACCESS_READ);
+  }
+
+  if (story_stream == NULL)
+  {
+    i18n_translate_and_exit(
+        fizmo_sdl_module_name,
+        i18n_sdl_COULD_NOT_OPEN_OR_FIND_P0S,
+        -0x2016,
+        input_file);
+    exit(EXIT_FAILURE);
+  }
+
+  if (SDL_Init(SDL_INIT_EVERYTHING) < 0)
+    i18n_translate_and_exit(
+        fizmo_sdl_module_name,
+        i18n_sdl_FUNCTION_CALL_P0S_ABORTED_DUE_TO_ERROR,
+        -1,
+        "SDL_Init");
+
+  SDL_EnableUNICODE(1);
+
+  if ((Surf_Display = SDL_SetVideoMode(
+          sdl_interface_screen_height,
+          sdl_interface_screen_width,
+          32,
+          SDL_HWSURFACE | SDL_ANYFORMAT | SDL_DOUBLEBUF | SDL_RESIZABLE
+          )) == NULL)
+    i18n_translate_and_exit(
+        fizmo_sdl_module_name,
+        i18n_sdl_FUNCTION_CALL_P0S_ABORTED_DUE_TO_ERROR,
+        -1,
+        "SDL_SetVideoMode");
+
+  fizmo_register_screen_pixel_interface(&sdl_interface);
+
+  fizmo_start(
+      story_stream,
+      blorb_stream,
+      savegame_to_restore,
+      screen_default_foreground_color,
+      screen_default_background_color);
+
+  SDL_Quit();
 
   return 0;
 }

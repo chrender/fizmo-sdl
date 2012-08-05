@@ -52,6 +52,10 @@ LIBS += $(shell PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) pkg-config \
  --libs libdrilbo)
 endif
 
+ifneq ($(LIBFREETYPE2_LIBS),)
+LIBS += $(LIBFREETYPE2_LIBS)
+endif
+
 ifneq ($(DISABLE_FILELIST),)
 override CFLAGS += -DDISABLE_FILELIST=
 endif
