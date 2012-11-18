@@ -83,8 +83,8 @@ static char* interface_name = "sdl";
 SDL_Surface* Surf_Display;
 static z_colour screen_default_foreground_color = Z_COLOUR_BLACK;
 static z_colour screen_default_background_color = Z_COLOUR_WHITE;
-static int sdl_interface_screen_height = 480;
-static int sdl_interface_screen_width = 640;
+static int sdl_interface_screen_height_in_pixels = 480;
+static int sdl_interface_screen_width_in_pixels = 640;
 /*
 static int sdl_argc;
 static char **sdl_argv;
@@ -1414,15 +1414,15 @@ static void refresh_screen_size()
 */
 
 
-static int get_screen_width()
+static int get_screen_width_index_pixels()
 {
-  return sdl_interface_screen_width;
+  return sdl_interface_screen_width_in_pixels;
 }
 
 
-static int get_screen_height()
+static int get_screen_height_in_pixels()
 {
-  return sdl_interface_screen_height;
+  return sdl_interface_screen_height_in_pixels;
 }
 
 
@@ -1845,8 +1845,8 @@ static struct z_screen_pixel_interface sdl_interface =
   &set_colour,
   &set_font,
   &output_interface_info,
-  &get_screen_width,
-  &get_screen_height,
+  &get_screen_width_in_pixels,
+  &get_screen_height_in_pixels,
   &update_screen,
   &redraw_screen_from_scratch,
   &copy_area,
@@ -3156,8 +3156,8 @@ int main(int argc, char *argv[])
   SDL_EnableUNICODE(1);
 
   if ((Surf_Display = SDL_SetVideoMode(
-          sdl_interface_screen_height,
-          sdl_interface_screen_width,
+          sdl_interface_screen_height_in_pixels,
+          sdl_interface_screen_width_in_pixels,
           32,
           SDL_HWSURFACE | SDL_ANYFORMAT | SDL_DOUBLEBUF | SDL_RESIZABLE
           )) == NULL)
