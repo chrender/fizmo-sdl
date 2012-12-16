@@ -1414,7 +1414,7 @@ static void refresh_screen_size()
 */
 
 
-static int get_screen_width_index_pixels()
+static int get_screen_width_in_pixels()
 {
   return sdl_interface_screen_width_in_pixels;
 }
