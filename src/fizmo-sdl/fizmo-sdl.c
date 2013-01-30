@@ -365,7 +365,10 @@ static void draw_grayscale_pixel(int y, int x, uint8_t pixel_value)
   Uint32 color = SDL_MapRGB(Surf_Display->format,
       pixel_value, pixel_value, pixel_value);
 
-  //printf("%d, %d, %d\n", y, x, pixel_value);
+  /*
+  printf("%d, %d, %d, %d\n",
+      x, y, pixel_value, Surf_Display->format->BytesPerPixel);
+  */
 
   if ( SDL_MUSTLOCK(Surf_Display) ) {
     if ( SDL_LockSurface(Surf_Display) < 0 ) {
@@ -1481,18 +1484,22 @@ static int get_next_event(z_ucs *z_ucs_input, int timeout_millis)
   while (running) {
     while (SDL_PollEvent(&Event)) {
       if (Event.type == SDL_QUIT) {
+        TRACE_LOG("quit\n");
         running = false;
       }
       else if (Event.type == SDL_KEYDOWN) {
         result = EVENT_WAS_INPUT;
         *z_ucs_input = Event.key.keysym.unicode;
         running = false;
+        TRACE_LOG("keydown\n");
       }
       else if (Event.type == SDL_VIDEORESIZE) {
         // User requested screen resize.
+        TRACE_LOG("resize\n");
       }
     }
   }
+  TRACE_LOG("return\n");
 
   return result;
 
@@ -3156,8 +3163,8 @@ int main(int argc, char *argv[])
   SDL_EnableUNICODE(1);
 
   if ((Surf_Display = SDL_SetVideoMode(
-          sdl_interface_screen_height_in_pixels,
           sdl_interface_screen_width_in_pixels,
+          sdl_interface_screen_height_in_pixels,
           32,
           SDL_HWSURFACE | SDL_ANYFORMAT | SDL_DOUBLEBUF | SDL_RESIZABLE
           )) == NULL)
