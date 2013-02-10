@@ -83,7 +83,7 @@ static char* interface_name = "sdl";
 SDL_Surface* Surf_Display;
 static z_colour screen_default_foreground_color = Z_COLOUR_BLACK;
 static z_colour screen_default_background_color = Z_COLOUR_WHITE;
-static int sdl_interface_screen_height_in_pixels = 480;
+static int sdl_interface_screen_height_in_pixels = 800;
 static int sdl_interface_screen_width_in_pixels = 640;
 /*
 static int sdl_argc;
@@ -1475,7 +1475,7 @@ static int get_next_event(z_ucs *z_ucs_input, int timeout_millis)
 {
   bool running = true;
   SDL_Event Event;
-  int result = -1;
+  int wait_result, result = -1;
 
   if (timeout_millis > 0) {
     TRACE_LOG("input timeout: %d ms. (%d/%d)\n", timeout_millis,
@@ -1485,7 +1485,8 @@ static int get_next_event(z_ucs *z_ucs_input, int timeout_millis)
   }
 
   while (running) {
-    while (SDL_PollEvent(&Event)) {
+    printf("polling...\n");
+    while ((wait_result = SDL_WaitEvent(&Event))) {
       if (Event.type == SDL_QUIT) {
         TRACE_LOG("quit\n");
         running = false;
@@ -1495,10 +1496,12 @@ static int get_next_event(z_ucs *z_ucs_input, int timeout_millis)
         *z_ucs_input = Event.key.keysym.unicode;
         running = false;
         TRACE_LOG("keydown\n");
+        printf("keydown\n");
       }
       else if (Event.type == SDL_VIDEORESIZE) {
         // User requested screen resize.
         TRACE_LOG("resize\n");
+        printf("resize\n");
       }
     }
   }
@@ -1735,7 +1738,8 @@ void copy_area(int dsty, int dstx, int srcy, int srcx, int height, int width)
   }
 
   switch (Surf_Display->format->BytesPerPixel) {
-    case 1: { /* Assuming 8-bpp */
+    /*
+    case 1: { // Assuming 8-bpp 
               Uint8 *srcp
                 = (Uint8 *)Surf_Display->pixels
                 + srcy*Surf_Display->pitch + srcx;
@@ -1745,7 +1749,7 @@ void copy_area(int dsty, int dstx, int srcy, int srcx, int height, int width)
             }
             break;
 
-    case 2: { /* Probably 15-bpp or 16-bpp */
+    case 2: { // Probably 15-bpp or 16-bpp 
               Uint16 *srcp = (Uint16 *)Surf_Display->pixels
                 + srcy*Surf_Display->pitch/2 + srcx;
 
@@ -1754,13 +1758,14 @@ void copy_area(int dsty, int dstx, int srcy, int srcx, int height, int width)
             }
             break;
 
-    case 3: { /* Slow 24-bpp mode, usually not used */
+    case 3: { // Slow 24-bpp mode, usually not used
               Uint8 *srcp = (Uint8 *)Surf_Display->pixels
                 + srcy*Surf_Display->pitch + srcx;
               Uint8 *dstp = (Uint8 *)Surf_Display->pixels
                 + dsty*Surf_Display->pitch + dstx;
             }
             break;
+            */
 
     case 4: { /* Probably 32-bpp */
               Uint32 *srcp = (Uint32 *)Surf_Display->pixels
@@ -1805,23 +1810,25 @@ void fill_area(int startx, int starty, int xsize, int ysize, z_colour colour)
   }
 
   switch (Surf_Display->format->BytesPerPixel) {
-    case 1: { /* Assuming 8-bpp */
+    /*
+    case 1: { // Assuming 8-bpp
               Uint8 *bufp = (Uint8 *)Surf_Display->pixels
                 + starty*Surf_Display->pitch + startx;
             }
             break;
 
-    case 2: { /* Probably 15-bpp or 16-bpp */
+    case 2: { // Probably 15-bpp or 16-bpp
               Uint16 *srcp = (Uint16 *)Surf_Display->pixels
                 + starty*Surf_Display->pitch/2 + startx;
             }
             break;
 
-    case 3: { /* Slow 24-bpp mode, usually not used */
+    case 3: { // Slow 24-bpp mode, usually not used
               Uint8 *srcp = (Uint8 *)Surf_Display->pixels
                 + starty*Surf_Display->pitch + startx;
             }
             break;
+            */
 
     case 4: { /* Probably 32-bpp */
               Uint32 *srcp;
