@@ -1484,28 +1484,38 @@ static int get_next_event(z_ucs *z_ucs_input, int timeout_millis)
     //SDL_AddTimer -> SDL_PushEvent
   }
 
-  while (running) {
-    printf("polling...\n");
-    while ((wait_result = SDL_WaitEvent(&Event))) {
-      if (Event.type == SDL_QUIT) {
-        TRACE_LOG("quit\n");
+  printf("polling...\n");
+  while ((running == true) && (wait_result = SDL_WaitEvent(&Event))) {
+    if (Event.type == SDL_QUIT) {
+      TRACE_LOG("quit\n");
+      running = false;
+    }
+    else if (Event.type == SDL_KEYDOWN) {
+      TRACE_LOG("keydown\n");
+      printf("keydown.\n");
+      if (Event.key.keysym.unicode == 127) {
+        result = EVENT_WAS_CODE_BACKSPACE;
         running = false;
       }
-      else if (Event.type == SDL_KEYDOWN) {
+      else {
         result = EVENT_WAS_INPUT;
-        *z_ucs_input = Event.key.keysym.unicode;
+        if (Event.key.keysym.unicode == 13) {
+          *z_ucs_input = Z_UCS_NEWLINE;
+        }
+        else {
+          *z_ucs_input = Event.key.keysym.unicode;
+        }
         running = false;
-        TRACE_LOG("keydown\n");
-        printf("keydown\n");
       }
-      else if (Event.type == SDL_VIDEORESIZE) {
-        // User requested screen resize.
-        TRACE_LOG("resize\n");
-        printf("resize\n");
-      }
+    }
+    else if (Event.type == SDL_VIDEORESIZE) {
+      // User requested screen resize.
+      TRACE_LOG("resize\n");
+      printf("resize\n");
     }
   }
   TRACE_LOG("return\n");
+  printf("return\n");
 
   return result;
 
