@@ -39,8 +39,11 @@
 #include <string.h>
 #include <strings.h>
 #include <signal.h>
+//#include <X11/Xlib.h>
+//#include <X11/Xutil.h>
 
 #include <SDL.h>
+//#include "SDL_getenv.h"
 
 #include <tools/i18n.h>
 #include <tools/tracelog.h>
@@ -998,44 +1001,6 @@ static void initialize_colors()
 */
 
 
-static void set_colour(z_colour UNUSED(foreground), z_colour UNUSED(background))
-{
-  /*
-  short color_pair_number;
-  //attr_t attrs;
-
-  TRACE_LOG("new colors: %d, %d\n", foreground, background);
-
-  if (color_initialized == false)
-    initialize_colors();
-
-  if ((color_pair_number = get_color_pair(foreground, background))
-      == -1)
-  {
-    if (bool_equal(dont_allocate_new_colour_pair, true))
-      return;
-    else
-      i18n_translate_and_exit(
-          fizmo_sdl_module_name,
-          i18n_sdl_FUNCTION_CALL_P0S_ABORTED_DUE_TO_ERROR,
-          -1,
-          "curses_if_get_color_pair");
-  }
-
-  TRACE_LOG("setting colour pair %d.\n", color_pair_number);
-
-  if (color_set(color_pair_number, NULL) == ERR)
-    i18n_translate_and_exit(
-        fizmo_sdl_module_name,
-        i18n_sdl_FUNCTION_CALL_P0S_ABORTED_DUE_TO_ERROR,
-        -0x2052,
-        "color_set");
-
-  bkgdset(' ' | COLOR_PAIR(color_pair_number));
-  */
-}
-
-
 /*
 #ifdef ENABLE_X11_IMAGES
 static void x11_callback_func(x11_image_window_id window_id, int event)
@@ -1362,32 +1327,6 @@ static attr_t sdl_z_style_to_attr_t(int16_t style_data)
   return result;
 }
 */
-
-
-static void set_text_style(z_style UNUSED(style_data))
-{
-  /*
-  attr_t attrs;
-
-  TRACE_LOG("Output style, style_data %d.\n", style_data);
-
-  attrs = sdl_z_style_to_attr_t(style_data);
-
-  if ((int)attrset(attrs) == ERR)
-  {
-    i18n_translate_and_exit(
-        fizmo_sdl_module_name,
-        i18n_sdl_FUNCTION_CALL_P0S_ABORTED_DUE_TO_ERROR,
-        -0x2fff,
-        "wattrset");
-  }
-  */
-}
-
-
-static void set_font(z_font UNUSED(font_type))
-{
-}
 
 
 static void output_interface_info()
@@ -1902,9 +1841,6 @@ static struct z_screen_pixel_interface sdl_interface =
   &link_interface_to_story,
   &reset_interface,
   &sdl_close_interface,
-  &set_text_style,
-  &set_colour,
-  &set_font,
   &output_interface_info,
   &get_screen_width_in_pixels,
   &get_screen_height_in_pixels,
@@ -2350,6 +2286,8 @@ int main(int argc, char *argv[])
   z_colour new_color;
   int int_value;
   z_file *savegame_to_restore= NULL;
+  //Display *display;
+  //Window window;
 
   /*
   int flags;
@@ -2361,26 +2299,18 @@ int main(int argc, char *argv[])
   size_t absdirname_len = 0;
   int i;
 #endif // DISABLE_FILELIST
+  */
+  
 
 #ifdef ENABLE_TRACING
   turn_on_trace();
 #endif // ENABLE_TRACING
 
+  /*
   setlocale(LC_ALL, "C");
   setlocale(LC_CTYPE, "");
 
   fizmo_register_screen_cell_interface(&sdl_interface);
-
-#ifdef SOUND_INTERFACE_STRUCT_NAME
-  fizmo_register_sound_interface(&SOUND_INTERFACE_STRUCT_NAME);
-#endif // SOUND_INTERFACE_STRUCT_NAME
-
-  // Parsing must occur after "fizmo_register_screen_cell_interface" so
-  // that fizmo knows where to forward "parse_config_parameter" parameters
-  // to.
-#ifndef DISABLE_CONFIGFILES
-  parse_fizmo_config_files();
-#endif // DISABLE_CONFIGFILES
 
   sdl_argc = argc;
   sdl_argv = argv;
@@ -3207,6 +3137,8 @@ int main(int argc, char *argv[])
     exit(EXIT_FAILURE);
   }
 
+  //SDL_putenv("SDL_VIDEODRIVER=Quartz");
+
   if (SDL_Init(SDL_INIT_EVERYTHING) < 0)
     i18n_translate_and_exit(
         fizmo_sdl_module_name,
@@ -3220,7 +3152,8 @@ int main(int argc, char *argv[])
           sdl_interface_screen_width_in_pixels,
           sdl_interface_screen_height_in_pixels,
           32,
-          SDL_HWSURFACE | SDL_ANYFORMAT | SDL_DOUBLEBUF | SDL_RESIZABLE
+          SDL_SWSURFACE | SDL_ANYFORMAT | SDL_DOUBLEBUF | SDL_RESIZABLE
+          //| SDL_NOFRAME
           )) == NULL)
     i18n_translate_and_exit(
         fizmo_sdl_module_name,
@@ -3228,7 +3161,34 @@ int main(int argc, char *argv[])
         -1,
         "SDL_SetVideoMode");
 
+  /*
+  SDL_SysWMinfo info;
+  SDL_VERSION(&info.version);
+
+  if(!SDL_GetWMInfo(&info)) {
+    printf("SDL cant get from SDL\n");
+  }
+
+  if ( info.subsystem != SDL_SYSWM_X11 ) {
+    printf("SDL is not running on X11\n");
+  }
+
+  display = info.info.x11.display;
+  window = info.info.x11.window;
+  */
+
   fizmo_register_screen_pixel_interface(&sdl_interface);
+
+#ifdef SOUND_INTERFACE_STRUCT_NAME
+  fizmo_register_sound_interface(&SOUND_INTERFACE_STRUCT_NAME);
+#endif // SOUND_INTERFACE_STRUCT_NAME
+
+  // Parsing must occur after "fizmo_register_screen_cell_interface" so
+  // that fizmo knows where to forward "parse_config_parameter" parameters
+  // to.
+#ifndef DISABLE_CONFIGFILES
+  parse_fizmo_config_files();
+#endif // DISABLE_CONFIGFILES
 
   fizmo_start(
       story_stream,
