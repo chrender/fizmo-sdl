@@ -69,6 +69,7 @@
 
 #define FIZMO_SDL_VERSION "0.1.0"
 
+
 #ifdef ENABLE_X11_IMAGES
 #include <drilbo/drilbo.h>
 #include <drilbo/drilbo-jpeg.h>
@@ -87,7 +88,10 @@ SDL_Surface* Surf_Display;
 static z_colour screen_default_foreground_color = Z_COLOUR_BLACK;
 static z_colour screen_default_background_color = Z_COLOUR_WHITE;
 static int sdl_interface_screen_height_in_pixels = 800;
-static int sdl_interface_screen_width_in_pixels = 640;
+static int sdl_interface_screen_width_in_pixels = 600;
+static const int sdl_color_depth = 32;
+static const int sdl_video_flags = SDL_SWSURFACE | SDL_ANYFORMAT
+| SDL_DOUBLEBUF | SDL_RESIZABLE;
 /*
 static int sdl_argc;
 static char **sdl_argv;
@@ -1450,7 +1454,20 @@ static int get_next_event(z_ucs *z_ucs_input, int timeout_millis)
     else if (Event.type == SDL_VIDEORESIZE) {
       // User requested screen resize.
       TRACE_LOG("resize\n");
-      printf("resize\n");
+      printf("resize: %d x %d\n", Event.resize.w, Event.resize.h);
+
+      if ((Surf_Display = SDL_SetVideoMode(
+              Event.resize.w,
+              Event.resize.h,
+              sdl_color_depth,
+              sdl_video_flags)) == NULL) {
+        printf("err-setvideomode\n");
+      }
+
+      sdl_interface_screen_height_in_pixels = Event.resize.w;
+      sdl_interface_screen_width_in_pixels = Event.resize.h;
+
+      new_pixel_screen_size(Event.resize.w, Event.resize.h);
     }
   }
   TRACE_LOG("return\n");
@@ -1677,8 +1694,10 @@ void copy_area(int dsty, int dstx, int srcy, int srcx, int height, int width)
   dstx -= 1;
   dsty -= 1;
 
+  /*
   printf("copy-area: %d, %d to %d, %d: %d x %d.\n",
       srcx, srcy, dstx, dsty, width, height);
+  */
 
   if ( SDL_MUSTLOCK(Surf_Display) ) {
     if ( SDL_LockSurface(Surf_Display) < 0 ) {
@@ -1750,7 +1769,7 @@ void fill_area(int startx, int starty, int xsize, int ysize, z_colour colour)
   startx -= 1;
   starty -= 1;
 
-  printf("Filling area %d,%d / %d,%d\n", startx, starty, xsize, ysize);
+  //printf("Filling area %d,%d / %d,%d\n", startx, starty, xsize, ysize);
 
   if ( SDL_MUSTLOCK(Surf_Display) ) {
     if ( SDL_LockSurface(Surf_Display) < 0 ) {
@@ -3146,15 +3165,15 @@ int main(int argc, char *argv[])
         -1,
         "SDL_Init");
 
+  atexit(SDL_Quit);
   SDL_EnableUNICODE(1);
+  SDL_EnableKeyRepeat(100, 20);
 
   if ((Surf_Display = SDL_SetVideoMode(
           sdl_interface_screen_width_in_pixels,
           sdl_interface_screen_height_in_pixels,
-          32,
-          SDL_SWSURFACE | SDL_ANYFORMAT | SDL_DOUBLEBUF | SDL_RESIZABLE
-          //| SDL_NOFRAME
-          )) == NULL)
+          sdl_color_depth,
+          sdl_video_flags)) == NULL)
     i18n_translate_and_exit(
         fizmo_sdl_module_name,
         i18n_sdl_FUNCTION_CALL_P0S_ABORTED_DUE_TO_ERROR,
