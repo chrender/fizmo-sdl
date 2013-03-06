@@ -206,6 +206,186 @@ static Uint32 z_to_sdl_colour(z_colour z_colour_to_convert)
   }
 }
 
+
+/*
+static void _PutPixelAlpha(SDL_Surface *surface, Sint16 x, Sint16 y,
+    Uint32 color, Uint8 alpha) { 
+
+  if(x>=SPG_clip_xmin(surface) && x<=SPG_clip_xmax(surface) 
+      && y>=SPG_clip_ymin(surface) && 
+      y<=SPG_clip_ymax(surface)){ 
+    Uint32 Rmask = 
+      surface->format->Rmask, Gmask = surface->format->Gmask, 
+    Bmask = surface->format->Bmask, Amask = 
+      surface->format->Amask; 
+    Uint32 R,G,B,A=SDL_ALPHA_OPAQUE; 
+    Uint32* pixel; 
+
+    switch (surface->format->BytesPerPixel) { 
+      case 1: { 
+
+                Uint8 *pixel = (Uint8 *)surface->pixels + y*surface->pitch + x; 
+
+                Uint8 dR = surface->format->palette->colors[*pixel].r; 
+                Uint8 dG = surface->format->palette->colors[*pixel].g; 
+                Uint8 dB = surface->format->palette->colors[*pixel].b; 
+                Uint8 sR = surface->format->palette->colors[color].r; 
+                Uint8 sG = surface->format->palette->colors[color].g; 
+                Uint8 sB = surface->format->palette->colors[color].b; 
+
+                dR = dR + ((sR-dR)*alpha >> 8); 
+                dG = dG + ((sG-dG)*alpha >> 8); 
+                dB = dB + ((sB-dB)*alpha >> 8); 
+
+                *pixel = SDL_MapRGB(surface->format, dR, dG, dB); 
+
+              } 
+              break; 
+
+      case 2: {
+
+                Uint16 *pixel = (Uint16 *)surface->pixels + y*surface->pitch/2 + x; 
+                Uint32 dc = *pixel; 
+
+                R = ((dc & Rmask) + (( (color & Rmask) - (dc & Rmask) ) * alpha >> 8)) & Rmask; 
+                G = ((dc & Gmask) + (( (color & Gmask) - (dc & Gmask) ) * alpha >> 8)) & Gmask; 
+                B = ((dc & Bmask) + (( (color & Bmask) - (dc & Bmask) ) * alpha >>8) ) & Bmask; 
+                if( Amask ) 
+                  A = ((dc & Amask) + (( (color & Amask) - (dc & Amask) ) * alpha >>8) ) & Amask; 
+
+                *pixel= R | G | B | A; 
+
+              } 
+              break; 
+
+      case 3: { 
+                Uint8 *pix = (Uint8 *)surface->pixels + y * surface->pitch + x*3; 
+                Uint8 rshift8=surface->format->Rshift/8; 
+                Uint8 gshift8=surface->format->Gshift/8; 
+                Uint8 bshift8=surface->format->Bshift/8; 
+                Uint8 ashift8=surface->format->Ashift/8; 
+
+
+
+                Uint8 dR, dG, dB, dA=0; 
+                Uint8 sR, sG, sB, sA=0; 
+
+                pix = (Uint8 *)surface->pixels + y * surface->pitch + x*3; 
+
+                dR = *((pix)+rshift8); 
+                dG = *((pix)+gshift8); 
+                dB = *((pix)+bshift8); 
+                dA = *((pix)+ashift8); 
+
+                sR = (color>>surface->format->Rshift)&0xff; 
+                sG = (color>>surface->format->Gshift)&0xff; 
+                sB = (color>>surface->format->Bshift)&0xff; 
+                sA = (color>>surface->format->Ashift)&0xff; 
+
+                dR = dR + ((sR-dR)*alpha >> 8); 
+                dG = dG + ((sG-dG)*alpha >> 8); 
+                dB = dB + ((sB-dB)*alpha >> 8); 
+                dA = dA + ((sA-dA)*alpha >> 8); 
+
+                *((pix)+rshift8) = dR; 
+                *((pix)+gshift8) = dG; 
+                *((pix)+bshift8) = dB; 
+                *((pix)+ashift8) = dA; 
+
+              } 
+              break; 
+
+      case 4: 
+              pixel = (Uint32*)surface->pixels + y*surface->pitch/4 + x; 
+              Uint32 dc = *pixel; 
+              R = color & Rmask; 
+              G = color & Gmask; 
+              B = color & Bmask; 
+              A = 0; // keep this as 0 to avoid corruption of non-alpha surfaces 
+
+
+              switch(SPG_GetBlend()) 
+              { 
+                case SPG_COMBINE_ALPHA: // Blend and combine src and dest alpha 
+                  if( alpha != SDL_ALPHA_OPAQUE ){ 
+                    R = ((dc & Rmask) + (( R - (dc & Rmask) ) * alpha >> 8)) & Rmask; 
+                    G = ((dc & Gmask) + (( G - (dc & Gmask) ) * alpha >> 8)) & Gmask; 
+                    B = ((dc & Bmask) + (( B - (dc & Bmask) ) * alpha >> 8)) & Bmask; 
+                  } 
+                  if(Amask) 
+
+                    A = ((((dc & Amask) >> surface->format->Ashift) + 
+                          alpha) >> 1) << surface->format->Ashift; 
+                  break; 
+                case SPG_DEST_ALPHA: // Blend and keep dest alpha 
+                  if( alpha != SDL_ALPHA_OPAQUE ){ 
+                    R = ((dc & Rmask) + (( R - (dc & Rmask) ) * alpha >> 8)) & Rmask; 
+                    G = ((dc & Gmask) + (( G - (dc & Gmask) ) * alpha >> 8)) & Gmask; 
+                    B = ((dc & Bmask) + (( B - (dc & Bmask) ) * alpha >> 8)) & Bmask; 
+                  } 
+                  if(Amask) 
+                    A = (dc & Amask); 
+                  break; 
+                case SPG_SRC_ALPHA: // Blend and keep src alpha 
+                  if( alpha != SDL_ALPHA_OPAQUE ){ 
+                    R = ((dc & Rmask) + (( R - (dc & Rmask) ) * alpha >> 8)) & Rmask; 
+                    G = ((dc & Gmask) + (( G - (dc & Gmask) ) * alpha >> 8)) & Gmask; 
+                    B = ((dc & Bmask) + (( B - (dc & Bmask) ) * alpha >> 8)) & Bmask; 
+                  } 
+                  if(Amask) 
+                    A = (alpha << surface->format->Ashift); 
+                  break; 
+                case SPG_COPY_SRC_ALPHA: // Direct copy with src alpha 
+                  if(Amask) 
+                    A = (alpha << surface->format->Ashift); 
+                  break; 
+                case SPG_COPY_DEST_ALPHA: // Direct copy with dest alpha 
+                  if(Amask) 
+                    A = (dc & Amask); 
+                  break; 
+                case SPG_COPY_COMBINE_ALPHA: // Direct copy with combined alpha 
+                  if(Amask) 
+
+                    A = ((((dc & Amask) >> surface->format->Ashift) + 
+                          alpha) >> 1) << surface->format->Ashift; 
+                  break; 
+                case SPG_COPY_NO_ALPHA: // Direct copy, alpha opaque 
+                  if(Amask) 
+                    A = (SDL_ALPHA_OPAQUE << surface->format->Ashift); 
+                  break; 
+                case SPG_COPY_ALPHA_ONLY: // Direct copy of just the alpha 
+                  R = dc & Rmask; 
+                  G = dc & Gmask; 
+                  B = dc & Bmask; 
+                  if(Amask) 
+                    A = (alpha << surface->format->Ashift); 
+                  break; 
+                case SPG_COMBINE_ALPHA_ONLY: // Blend of just the alpha 
+                  R = dc & Rmask; 
+                  G = dc & Gmask; 
+                  B = dc & Bmask; 
+                  if(Amask) 
+
+                    A = ((((dc & Amask) >> surface->format->Ashift) + 
+                          alpha) >> 1) << surface->format->Ashift; 
+                  break; 
+                case SPG_REPLACE_COLORKEY: // Replace the colorkeyed color 
+                  if(!(surface->flags & SDL_SRCCOLORKEY) || dc != surface->format->colorkey) 
+                    return; 
+                  if(Amask) 
+                    A = (alpha << surface->format->Ashift); 
+                  break; 
+              } 
+
+              *pixel = R | G | B | A; 
+              break; 
+    } 
+  } 
+} 
+*/
+
+
+
 /*
 static z_ucs *z_ucs_string_to_wchar_t(wchar_t *dest, z_ucs *src,
     size_t max_dest_len)
@@ -372,6 +552,8 @@ static void draw_grayscale_pixel(int y, int x, uint8_t pixel_value)
   Uint32 color = SDL_MapRGB(Surf_Display->format,
       pixel_value, pixel_value, pixel_value);
 
+  //SDL_MapRGBA
+
   /*
   printf("%d, %d, %d, %d\n",
       x, y, pixel_value, Surf_Display->format->BytesPerPixel);
@@ -441,18 +623,6 @@ static char* get_interface_name()
 static bool is_colour_available()
 {
   //return has_colors();
-  return true;
-}
-
-
-static bool is_bold_face_available()
-{
-  return true;
-}
-
-
-static bool is_italic_available()
-{
   return true;
 }
 
@@ -1852,8 +2022,6 @@ static struct z_screen_pixel_interface sdl_interface =
   &get_next_event,
   &get_interface_name,
   &is_colour_available,
-  &is_bold_face_available,
-  &is_italic_available,
   &parse_config_parameter,
   &get_config_value,
   &get_config_option_names,
