@@ -547,10 +547,9 @@ static z_colour curses_to_z_colour(short curses_color)
 */
 
 
-static void draw_grayscale_pixel(int y, int x, uint8_t pixel_value)
+static void draw_rgb_pixel(int y, int x, uint8_t r, uint8_t g, uint8_t b)
 {
-  Uint32 color = SDL_MapRGB(Surf_Display->format,
-      pixel_value, pixel_value, pixel_value);
+  Uint32 color = SDL_MapRGB(Surf_Display->format, r, g, b);
 
   //SDL_MapRGBA
 
@@ -587,9 +586,9 @@ static void draw_grayscale_pixel(int y, int x, uint8_t pixel_value)
               Uint8 *bufp;
 
               bufp = (Uint8 *)Surf_Display->pixels + y*Surf_Display->pitch + x;
-              *(bufp+Surf_Display->format->Rshift/8) = pixel_value;
-              *(bufp+Surf_Display->format->Gshift/8) = pixel_value;
-              *(bufp+Surf_Display->format->Bshift/8) = pixel_value;
+              *(bufp+Surf_Display->format->Rshift/8) = r;
+              *(bufp+Surf_Display->format->Gshift/8) = g;
+              *(bufp+Surf_Display->format->Bshift/8) = b;
             }
             break;
 
@@ -2017,7 +2016,7 @@ static z_colour get_default_background_colour()
 
 static struct z_screen_pixel_interface sdl_interface =
 {
-  &draw_grayscale_pixel,
+  &draw_rgb_pixel,
   &is_input_timeout_available,
   &get_next_event,
   &get_interface_name,
