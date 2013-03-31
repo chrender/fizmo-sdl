@@ -1633,10 +1633,10 @@ static int get_next_event(z_ucs *z_ucs_input, int timeout_millis)
         printf("err-setvideomode\n");
       }
 
-      sdl_interface_screen_height_in_pixels = Event.resize.w;
-      sdl_interface_screen_width_in_pixels = Event.resize.h;
+      sdl_interface_screen_height_in_pixels = Event.resize.h;
+      sdl_interface_screen_width_in_pixels = Event.resize.w;
 
-      new_pixel_screen_size(Event.resize.w, Event.resize.h);
+      new_pixel_screen_size(Event.resize.h, Event.resize.w);
     }
   }
   TRACE_LOG("return\n");
@@ -1924,21 +1924,24 @@ void copy_area(int dsty, int dstx, int srcy, int srcx, int height, int width)
 }
 
 
-void clear_to_eol()
-{
-  //clrtoeol();
-}
-
-
-void fill_area(int startx, int starty, int xsize, int ysize, z_colour colour)
+void fill_area(int startx, int starty, int xsize, int ysize,
+    z_rgb_colour colour)
 {
   int y, x;
-  Uint32 sdl_colour = z_to_sdl_colour(colour);
+  Uint32 sdl_colour;
 
   startx -= 1;
   starty -= 1;
 
-  //printf("Filling area %d,%d / %d,%d\n", startx, starty, xsize, ysize);
+  TRACE_LOG("Filling area %d,%d / %d,%d with %d\n",
+      startx, starty, xsize, ysize, colour);
+
+  sdl_colour
+    = SDL_MapRGB(
+        Surf_Display->format,
+        red_from_z_rgb_colour(colour),
+        green_from_z_rgb_colour(colour),
+        blue_from_z_rgb_colour(colour));
 
   if ( SDL_MUSTLOCK(Surf_Display) ) {
     if ( SDL_LockSurface(Surf_Display) < 0 ) {
@@ -2033,7 +2036,6 @@ static struct z_screen_pixel_interface sdl_interface =
   &update_screen,
   &redraw_screen_from_scratch,
   &copy_area,
-  &clear_to_eol,
   &fill_area,
   &set_cursor_visibility,
   &get_default_foreground_colour,
@@ -3334,7 +3336,7 @@ int main(int argc, char *argv[])
 
   atexit(SDL_Quit);
   SDL_EnableUNICODE(1);
-  SDL_EnableKeyRepeat(100, 20);
+  SDL_EnableKeyRepeat(200, 20);
 
   if ((Surf_Display = SDL_SetVideoMode(
           sdl_interface_screen_width_in_pixels,
