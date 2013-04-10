@@ -44,6 +44,7 @@
 
 #include <SDL.h>
 //#include "SDL_getenv.h"
+#include <SDL_thread.h>
 
 #include <tools/i18n.h>
 #include <tools/tracelog.h>
@@ -92,6 +93,9 @@ static int sdl_interface_screen_width_in_pixels = 600;
 static const int sdl_color_depth = 32;
 static const int sdl_video_flags = SDL_SWSURFACE | SDL_ANYFORMAT
 | SDL_DOUBLEBUF | SDL_RESIZABLE;
+static SDL_TimerID timeout_timer;
+static bool timeout_timer_exists;
+static SDL_sem *timeout_semaphore;
 /*
 static int sdl_argc;
 static char **sdl_argv;
@@ -1583,6 +1587,35 @@ static void sdl_if_catch_signal(int sig_num)
 */
 
 
+static Uint32 timeout_callback(Uint32 interval, void *UNUSED(param)) {
+  SDL_Event event;
+  SDL_UserEvent userevent;
+
+  SDL_SemWait(timeout_semaphore);
+
+  if (timeout_timer_exists == true) {
+    SDL_RemoveTimer(timeout_timer);
+    timeout_timer_exists = false;
+
+    //printf("event, interval: %d\n", interval);
+
+    userevent.type = SDL_USEREVENT;
+    userevent.code = 0;
+    userevent.data1 = NULL;
+    userevent.data2 = NULL;
+
+    event.type = SDL_USEREVENT;
+    event.user = userevent;
+
+    SDL_PushEvent(&event);
+  }
+
+  SDL_SemPost(timeout_semaphore);
+
+  return interval;
+}
+
+
 static int get_next_event(z_ucs *z_ucs_input, int timeout_millis)
 {
   bool running = true;
@@ -1590,10 +1623,12 @@ static int get_next_event(z_ucs *z_ucs_input, int timeout_millis)
   int wait_result, result = -1;
 
   if (timeout_millis > 0) {
-    TRACE_LOG("input timeout: %d ms. (%d/%d)\n", timeout_millis,
-        timeout_millis - (timeout_millis % 1000), 
-        (timeout_millis % 1000) * 1000);
-    //SDL_AddTimer -> SDL_PushEvent
+    //printf("input timeout: %d ms.\n", timeout_millis);
+    TRACE_LOG("input timeout: %d ms.\n", timeout_millis);
+    SDL_SemWait(timeout_semaphore);
+    timeout_timer = SDL_AddTimer(timeout_millis, &timeout_callback, NULL);
+    timeout_timer_exists = true;
+    SDL_SemPost(timeout_semaphore);
   }
 
   printf("polling...\n");
@@ -1638,7 +1673,21 @@ static int get_next_event(z_ucs *z_ucs_input, int timeout_millis)
 
       new_pixel_screen_size(Event.resize.h, Event.resize.w);
     }
+    else if (Event.type == SDL_USEREVENT) {
+      result = EVENT_WAS_TIMEOUT;
+      running = false;
+    }
   }
+
+  if (timeout_millis > 0) {
+    SDL_SemWait(timeout_semaphore);
+    if (timeout_timer_exists == true) {
+      SDL_RemoveTimer(timeout_timer);
+      timeout_timer_exists = false;
+    }
+    SDL_SemPost(timeout_semaphore);
+  }
+
   TRACE_LOG("return\n");
   printf("return\n");
 
@@ -1933,6 +1982,10 @@ void fill_area(int startx, int starty, int xsize, int ysize,
   startx -= 1;
   starty -= 1;
 
+  /*
+  printf("Filling area %d,%d / %d,%d with %d\n",
+      startx, starty, xsize, ysize, colour);
+  */
   TRACE_LOG("Filling area %d,%d / %d,%d with %d\n",
       startx, starty, xsize, ysize, colour);
 
@@ -3349,6 +3402,8 @@ int main(int argc, char *argv[])
         -1,
         "SDL_SetVideoMode");
 
+  timeout_semaphore = SDL_CreateSemaphore(1);
+
   /*
   SDL_SysWMinfo info;
   SDL_VERSION(&info.version);
@@ -3385,6 +3440,7 @@ int main(int argc, char *argv[])
       screen_default_foreground_color,
       screen_default_background_color);
 
+  SDL_DestroySemaphore(timeout_semaphore);
   SDL_Quit();
 
   return 0;
