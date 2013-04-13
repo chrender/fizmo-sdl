@@ -1508,7 +1508,6 @@ static attr_t sdl_z_style_to_attr_t(int16_t style_data)
 
 static void output_interface_info()
 {
-  /*
   (void)i18n_translate(
       fizmo_sdl_module_name,
       i18n_sdl_FIZMO_SDL_VERSION_P0S,
@@ -1521,7 +1520,6 @@ static void output_interface_info()
       get_drilbo_version());
   (void)streams_latin1_output("\n");
 #endif //ENABLE_X11_IMAGES
-  */
 }
 
 
