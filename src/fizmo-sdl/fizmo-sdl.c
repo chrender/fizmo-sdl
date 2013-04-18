@@ -1642,6 +1642,22 @@ static int get_next_event(z_ucs *z_ucs_input, int timeout_millis)
         result = EVENT_WAS_CODE_BACKSPACE;
         running = false;
       }
+      else if (Event.key.keysym.sym == SDLK_UP) {
+        result = EVENT_WAS_CODE_CURSOR_UP;
+        running = false;
+      }
+      else if (Event.key.keysym.sym == SDLK_DOWN) {
+        result = EVENT_WAS_CODE_CURSOR_DOWN;
+        running = false;
+      }
+      else if (Event.key.keysym.sym == SDLK_LEFT) {
+        result = EVENT_WAS_CODE_CURSOR_LEFT;
+        running = false;
+      }
+      else if (Event.key.keysym.sym == SDLK_RIGHT) {
+        result = EVENT_WAS_CODE_CURSOR_RIGHT;
+        running = false;
+      }
       else {
         result = EVENT_WAS_INPUT;
         if (Event.key.keysym.unicode == 13) {
