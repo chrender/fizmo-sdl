@@ -1921,11 +1921,6 @@ void copy_area(int dsty, int dstx, int srcy, int srcx, int height, int width)
 {
   int y;
 
-  srcx -= 1;
-  srcy -= 1;
-  dstx -= 1;
-  dsty -= 1;
-
   /*
   printf("copy-area: %d, %d to %d, %d: %d x %d.\n",
       srcx, srcy, dstx, dsty, width, height);
@@ -1992,9 +1987,6 @@ void fill_area(int startx, int starty, int xsize, int ysize,
 {
   int y, x;
   Uint32 sdl_colour;
-
-  startx -= 1;
-  starty -= 1;
 
   /*
   printf("Filling area %d,%d / %d,%d with %d\n",
