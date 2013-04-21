@@ -1629,7 +1629,7 @@ static int get_next_event(z_ucs *z_ucs_input, int timeout_millis)
     SDL_SemPost(timeout_semaphore);
   }
 
-  printf("polling...\n");
+  //printf("polling...\n");
   while ((running == true) && (wait_result = SDL_WaitEvent(&Event))) {
     if (Event.type == SDL_QUIT) {
       TRACE_LOG("quit\n");
@@ -1637,7 +1637,7 @@ static int get_next_event(z_ucs *z_ucs_input, int timeout_millis)
     }
     else if (Event.type == SDL_KEYDOWN) {
       TRACE_LOG("keydown\n");
-      printf("keydown.\n");
+      //printf("keydown.\n");
       if (Event.key.keysym.unicode == 127) {
         result = EVENT_WAS_CODE_BACKSPACE;
         running = false;
@@ -1703,7 +1703,7 @@ static int get_next_event(z_ucs *z_ucs_input, int timeout_millis)
   }
 
   TRACE_LOG("return\n");
-  printf("return\n");
+  //printf("return\n");
 
   return result;
 
