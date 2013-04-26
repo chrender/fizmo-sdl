@@ -1638,7 +1638,7 @@ static int get_next_event(z_ucs *z_ucs_input, int timeout_millis)
     else if (Event.type == SDL_KEYDOWN) {
       TRACE_LOG("keydown\n");
       //printf("keydown.\n");
-      if (Event.key.keysym.unicode == 127) {
+      if (Event.key.keysym.sym == SDLK_BACKSPACE) {
         result = EVENT_WAS_CODE_BACKSPACE;
         running = false;
       }
