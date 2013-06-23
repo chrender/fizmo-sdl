@@ -3442,9 +3442,7 @@ int main(int argc, char *argv[])
   fizmo_start(
       story_stream,
       blorb_stream,
-      savegame_to_restore,
-      screen_default_foreground_color,
-      screen_default_background_color);
+      savegame_to_restore);
 
   SDL_DestroySemaphore(timeout_semaphore);
   SDL_Quit();
