@@ -1,4 +1,6 @@
 
+AUTOMAKE_OPTIONS = subdir-objects
+
 AM_CFLAGS = $(sdl_CFLAGS) $(libfizmo_CFLAGS) $(libpixelif_CFLAGS)
 AM_CPPFLAGS =
 LDADD = $(sdl_LIBS) $(libfizmo_LIBS) $(libpixelif_LIBS)
