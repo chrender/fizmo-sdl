@@ -78,10 +78,10 @@
 #include <drilbo/drilbo-x11.h>
 #endif //ENABLE_X11_IMAGES
 
+#define SDL_OUTPUT_CHAR_BUF_SIZE 80
 /*
 #define SDL_WCHAR_T_BUF_SIZE 64
 #define SDL_Z_UCS_BUF_SIZE 32
-#define SDL_OUTPUT_CHAR_BUF_SIZE 80
 */
 
 static char* interface_name = "sdl";
@@ -96,6 +96,7 @@ static const int sdl_video_flags = SDL_SWSURFACE | SDL_ANYFORMAT
 static SDL_TimerID timeout_timer;
 static bool timeout_timer_exists;
 static SDL_sem *timeout_semaphore;
+static char output_char_buf[SDL_OUTPUT_CHAR_BUF_SIZE];
 /*
 static int sdl_argc;
 static char **sdl_argv;
@@ -111,7 +112,6 @@ static int infowin_skip_x;
 static bool infowin_full = false;
 static wchar_t wchar_t_buf[SDL_WCHAR_T_BUF_SIZE];
 static z_ucs z_ucs_t_buf[SDL_Z_UCS_BUF_SIZE];
-static char output_char_buf[SDL_OUTPUT_CHAR_BUF_SIZE];
 static bool sdl_interface_open = false;
 
 static int n_color_pairs_in_use;
@@ -386,168 +386,6 @@ static void _PutPixelAlpha(SDL_Surface *surface, Sint16 x, Sint16 y,
     } 
   } 
 } 
-*/
-
-
-
-/*
-static z_ucs *z_ucs_string_to_wchar_t(wchar_t *dest, z_ucs *src,
-    size_t max_dest_len)
-{
-  if (max_dest_len < 2)
-  {
-    return NULL;
-  }
-
-  while (*src != 0)
-  {
-    if (max_dest_len == 1)
-    {
-      *dest = L'\0';
-      return src;
-    }
-
-    *dest = (wchar_t)*src;
-
-    dest++;
-    src++;
-    max_dest_len--;
-  }
-
-  *dest = L'\0';
-  return NULL;
-}
-*/
-
-
-/*
-static void infowin_z_ucs_output_wordwrap_destination(z_ucs *z_ucs_output,
-    void *UNUSED(dummyparameter))
-{
-  z_ucs *ptr;
-  int y;
-#ifdef __GNUC__
-  int __attribute__ ((unused)) x;
-#else
-  int x;
-#endif // __GNU_CC
-#ifdef ENABLE_TRACING
-  z_ucs buf;
-#endif // ENABLE_TRACING
-
-  if (infowin_full == true)
-    return;
-
-  // In case we're supposed to skip some story description in case the user
-  // has scrolled down, loop here until we're at the "infowin_topindex", at the
-  // point we're supposed to start output.
-  TRACE_LOG("line length: %d\n", infowin_width - infowin_skip_x);
-  if (infowin_lines_skipped < infowin_topindex)
-  {
-    while (
-        ((ptr = z_ucs_chr(z_ucs_output, Z_UCS_NEWLINE)) != NULL)
-        ||
-        ((long)z_ucs_len(z_ucs_output) >= infowin_width - infowin_skip_x)
-        )
-    {
-      TRACE_LOG("loop: ptr:%p, len:%d.\n", ptr, (long)z_ucs_len(z_ucs_output));
-      if (ptr != NULL)
-      {
-#ifdef ENABLE_TRACING
-        buf = *ptr;
-        *ptr = 0;
-        TRACE_LOG("skip infowin output: \"");
-        TRACE_LOG_Z_UCS(z_ucs_output);
-        TRACE_LOG("\"\n");
-        *ptr = buf;
-#endif // ENABLE_TRACING
-
-        TRACE_LOG("diff: %d, %d\n",
-            ptr - z_ucs_output, infowin_width - infowin_skip_x);
-        if (ptr - z_ucs_output > infowin_width - infowin_skip_x)
-          z_ucs_output += infowin_width - infowin_skip_x;
-        else
-          z_ucs_output = ptr + 1;
-      }
-      else
-      {
-        TRACE_LOG("overlong line, skipping %d chars.\n",
-            infowin_width - infowin_skip_x);
-        z_ucs_output += (infowin_width - infowin_skip_x);
-      }
-
-      if (++infowin_lines_skipped == infowin_topindex)
-      {
-        TRACE_LOG("break after: infowin_lines_skipped: %d\n", infowin_lines_skipped);
-        break;
-      }
-    }
-
-    infowin_skip_x = z_ucs_len(z_ucs_output);
-
-    TRACE_LOG("infowin_lines_skipped: %d\n", infowin_lines_skipped);
-    if (infowin_lines_skipped < infowin_topindex)
-      return;
-  }
-
-  // At this point we've skipped all required lines. Skip any newline we come
-  // accross before starting the true output.
-
-  // Display output. Output will be either the supplied "z_ucs_output", or the
-  // "infowin_more" message in case we're at the bottom of the infowin page.
-
-  // Determine if we're at the bottom and adjust output contents in this case.
-  getyx(infowin, y, x);
-  if (y == infowin_height - 1)
-  {
-    TRACE_LOG("infowin full.\n");
-    infowin_full = true;
-    waddstr(infowin, "[");
-    z_ucs_output = infowin_more;
-  }
-
-  // Display output.
-  while (z_ucs_output != NULL)
-  {
-    TRACE_LOG("infowin output: \"");
-    TRACE_LOG_Z_UCS(z_ucs_output);
-    TRACE_LOG("\"\n");
-    z_ucs_output = z_ucs_string_to_wchar_t(
-        wchar_t_buf,
-        z_ucs_output,
-        SDL_WCHAR_T_BUF_SIZE);
-
-    // Ignore errors, since output on the last line always causes
-    // ERR to be returned.
-    waddwstr(infowin, wchar_t_buf);
-  }
-
-  // Add closing bracket in case we're displaying the "infowin_more" message.
-  if (infowin_full == true)
-    waddstr(infowin, "]");
-}
-*/
-
-
-/*
-#ifdef ENABLE_TRACING
-static z_colour curses_to_z_colour(short curses_color)
-{
-  switch (curses_color)
-  {
-    case COLOR_BLACK:   return Z_COLOUR_BLACK;
-    case COLOR_RED:     return Z_COLOUR_RED;
-    case COLOR_GREEN:   return Z_COLOUR_GREEN;
-    case COLOR_YELLOW:  return Z_COLOUR_YELLOW;
-    case COLOR_BLUE:    return Z_COLOUR_BLUE;
-    case COLOR_MAGENTA: return Z_COLOUR_MAGENTA;
-    case COLOR_CYAN:    return Z_COLOUR_CYAN;
-    case COLOR_WHITE:   return Z_COLOUR_WHITE;
-  }
-
-  return -1;
-}
-#endif // ENABLE_TRACING
 */
 
 
@@ -2076,6 +1914,24 @@ static z_colour get_default_background_colour()
 }
 
 
+static int console_output(z_ucs *output)
+{
+  while (*output != 0)
+  {
+    zucs_string_to_utf8_string(
+        output_char_buf,
+        &output,
+        SDL_OUTPUT_CHAR_BUF_SIZE);
+
+    TRACE_LOG("Console output: %s\n", output_char_buf);
+    fputs(output_char_buf, stdout);
+  }
+  fflush(stdout);
+
+  return 0;
+}
+
+
 static struct z_screen_pixel_interface sdl_interface =
 {
   &draw_rgb_pixel,
@@ -2098,390 +1954,9 @@ static struct z_screen_pixel_interface sdl_interface =
   &fill_area,
   &set_cursor_visibility,
   &get_default_foreground_colour,
-  &get_default_background_colour
+  &get_default_background_colour,
+  &console_output
 };
-
-
-/*
-static char *select_story_from_menu()
-{
-  //z_colour foreground, background;
-  int input;
-  int storywin_height = -1;
-  int storywin_width = -1;
-  int storywin_y = 3;
-  int infowin_y = 3;
-  int storywin_x = 3;
-  int story_title_length = -1;
-  struct z_story_list *story_list;
-  int i, j;
-  int y, x;
-  bool input_done = false;
-  int selected = 0;
-  int len;
-  int scroll_index = 0;
-  struct z_story_list_entry *entry;
-  char *result;
-  char *src;
-  fd_set input_selectors;
-  int max_filedes_number_plus_1;
-  int select_retval;
-  bool perform_init = true;
-  int read_retval;
-  int bytes_read;
-  int new_signal;
-  z_ucs *ptr;
-  attr_t attrs;
-  short menucolorpair = -1;
-  char *config_disablecolor;
-
-#ifndef DISABLE_FILELIST
-  story_list
-    = dont_update_story_list_on_start != true
-    ? update_fizmo_story_list()
-    : get_z_story_list();
-
-  if ( (story_list == NULL) || (story_list->nof_entries < 1) )
-  {
-    //set_configuration_value("locale", fizmo_locale, "sdl");
-    streams_latin1_output("\n");
-    i18n_translate(
-        fizmo_sdl_module_name,
-        i18n_sdl_NO_STORIES_REGISTERED_PLUS_HELP);
-    streams_latin1_output("\n\n");
-    //set_configuration_value("locale", fizmo_locale, "fizmo");
-    return NULL;
-  }
-#endif // DISABLE_FILELIST
-
-  sigemptyset(&default_sigaction.sa_mask);
-  default_sigaction.sa_flags = 0;
-  default_sigaction.sa_handler = &sdl_if_catch_signal;
-  sigaction(SIGWINCH, &default_sigaction, NULL);
-
-  infowin_output_wordwrapper = wordwrap_new_wrapper(
-      80,
-      &infowin_z_ucs_output_wordwrap_destination,
-      (void*)NULL,
-      false,
-      0,
-      false,
-      true);
-
-  infowin_more = i18n_translate_to_string(
-      fizmo_sdl_module_name,
-      i18n_sdl_SPACE_FOR_NEXT_PAGE);
-  infowin_back = i18n_translate_to_string(
-      fizmo_sdl_module_name,
-      i18n_sdl_B_FOR_LAST_PAGE);
-
-  while (input_done == false)
-  {
-    if (perform_init == true)
-    {
-      initscr();
-      cbreak();
-      noecho();
-      keypad(stdscr, true);
-
-      config_disablecolor = get_configuration_value("disable-color");
-      if (
-           (has_colors() == true)
-           &&
-           ( (config_disablecolor == NULL)
-             || (strcmp(config_disablecolor, "true") != 0) )
-         )
-      {
-        start_color();
-        set_colour(default_foreground_colour, default_background_colour);
-        attr_get(&attrs, &menucolorpair, NULL);
-        TRACE_LOG("Current color pair %d.\n", menucolorpair);
-        bkgdset(' ' | COLOR_PAIR(menucolorpair));
-        bkgd(' ' | COLOR_PAIR(menucolorpair));
-      }
-      else
-        menucolorpair = -1;
-
-      getmaxyx(stdscr, y, x);
-      storywin_height = y - 5;
-
-      storywin_width = x / 3;
-      story_title_length = storywin_width - 9;
-
-      infowin_height = storywin_height;
-      TRACE_LOG("infowin_height: %d.\n", infowin_height);
-      infowin_width = x - storywin_width - storywin_x - 9;
-      infowin_topindex = 0;
-
-      infowin = subwin(
-          stdscr,
-          infowin_height + 1,
-          infowin_width + 1,
-          infowin_y,
-          storywin_width + storywin_x + 5);
-
-      wordwrap_adjust_line_length(
-          infowin_output_wordwrapper,
-          x - storywin_width - storywin_x - 9);
-
-      perform_init = false;
-    }
-
-    erase();
-
-    attrset(A_BOLD);
-    mvprintw(1, storywin_x + 7,
-        "fizmo-sdl Z-Machine interpreter, Version %s\n",
-        FIZMO_SDL_VERSION);
-    attrset(A_NORMAL);
-
-    i = 0;
-    while ( (i<storywin_height) && (i + scroll_index < story_list->nof_entries))
-    {
-      entry = story_list->entries[i + scroll_index];
-      if (i + scroll_index == selected)
-      {
-        attrset(A_REVERSE);
-        mvaddstr(storywin_y + i, storywin_x, "  ");
-        printw("%3d  ", scroll_index + i + 1);
-        len = (long)strlen(entry->title) > story_title_length
-          ? story_title_length - 3 : story_title_length;
-        addnstr(entry->title, len);
-        if ((long)strlen(entry->title) > story_title_length)
-          addstr("...");
-        getyx(stdscr, y, x);
-        j = storywin_x + storywin_width - x;
-        while (j-- > 0)
-          addstr(" ");
-        attrset(A_NORMAL);
-      }
-      else
-      {
-        mvprintw(storywin_y + i, storywin_x + 2, "%3d  ", scroll_index + i + 1);
-        len = (long)strlen(entry->title) > story_title_length
-          ? story_title_length - 3 : story_title_length;
-        addnstr(entry->title, len);
-        if ((long)strlen(entry->title) > story_title_length)
-          addstr("...");
-      }
-
-      i++;
-    }
-
-    if (menucolorpair != -1)
-      wcolor_set(infowin, menucolorpair, NULL);
-    werase(infowin);
-    entry = story_list->entries[selected];
-
-    wattrset(infowin, A_BOLD);
-    wprintw(infowin, "%s\n", entry->title);
-    wattrset(infowin, A_NORMAL);
-
-    wprintw(infowin, "By: %s\n", entry->author);
-
-    wprintw(infowin, "v%d / S:%s / R:%d / C:%d.\n", entry->z_code_version,
-        entry->serial, entry->release_number, entry->checksum);
-
-    if (infowin_topindex == 0)
-      wprintw(infowin, "\n");
-    else
-    {
-      waddstr(infowin, "[");
-      ptr = infowin_back;
-      while (ptr != NULL)
-      {
-        ptr = z_ucs_string_to_wchar_t(
-            wchar_t_buf,
-            ptr,
-            SDL_WCHAR_T_BUF_SIZE);
-
-        if (waddwstr(infowin, wchar_t_buf) == ERR)
-          i18n_translate_and_exit(
-              fizmo_sdl_module_name,
-              i18n_sdl_FUNCTION_CALL_P0S_ABORTED_DUE_TO_ERROR,
-              -1,
-              "waddwstr");
-      }
-      waddstr(infowin, "]\n");
-    }
-
-    infowin_lines_skipped = 0;
-    infowin_skip_x = 0;
-    infowin_full = false;
-    //wordwrap_set_line_index(infowin_output_wordwrapper, 0);
-    src = entry->description;
-    do
-    {
-      src = utf8_string_to_zucs_string(
-          z_ucs_t_buf, src, SDL_Z_UCS_BUF_SIZE);
-      wordwrap_wrap_z_ucs(infowin_output_wordwrapper, z_ucs_t_buf);
-    }
-    while (src != NULL);
-    wordwrap_flush_output(infowin_output_wordwrapper);
-
-    refresh();
-    //wrefresh(infowin);
-
-    max_filedes_number_plus_1
-      = (STDIN_FILENO < sdl_if_signalling_pipe[0]
-          ? sdl_if_signalling_pipe[0]
-          : STDIN_FILENO) + 1;
-
-    FD_ZERO(&input_selectors);
-    FD_SET(STDIN_FILENO, &input_selectors);
-    FD_SET(sdl_if_signalling_pipe[0], &input_selectors);
-
-    select_retval = select(
-        max_filedes_number_plus_1,
-        &input_selectors,
-        NULL,
-        NULL,
-        NULL);
-
-    if (select_retval > 0)
-    {
-      TRACE_LOG("select_retval > 0.\n");
-
-      // something has changed in one of out input pipes.
-      if (FD_ISSET(STDIN_FILENO, &input_selectors))
-      {
-        input = getch();
-
-        if (input == '\n')
-        {
-          result = fizmo_strdup(story_list->entries[selected]->filename);
-          input_done = true;
-        }
-        else if (input == KEY_UP)
-        {
-          if (selected > 0)
-            selected--;
-          if (selected < scroll_index)
-            scroll_index--; 
-          infowin_topindex = 0;
-        }
-        else if (input == KEY_DOWN)
-        {
-          if (selected  + 1 < story_list->nof_entries)
-            selected++;
-          if (selected == storywin_height + scroll_index)
-            scroll_index++; 
-          infowin_topindex = 0;
-        }
-        else if (input == KEY_NPAGE)
-        {
-          scroll_index += storywin_height;
-          selected += storywin_height;
-          if (scroll_index >= story_list->nof_entries)
-          {
-            scroll_index = story_list->nof_entries - storywin_height;
-            selected = story_list->nof_entries - 1;
-
-            if (scroll_index < 0)
-              scroll_index = 0;
-          }
-          infowin_topindex = 0;
-        }
-        else if (input == KEY_PPAGE)
-        {
-          scroll_index -= storywin_height;
-          selected -= storywin_height;
-          if (scroll_index < 0)
-          {
-            scroll_index = 0;
-            selected = 0;
-          }
-        }
-        else if (input == 27)
-        {
-          input_done = true;
-          result = NULL;
-        }
-        else if ( (input == ' ') && (infowin_full == true) )
-        {
-          infowin_topindex += (infowin_height - 5);
-          TRACE_LOG("New infowin_topindex: %d.\n", infowin_topindex);
-        }
-        else if (input == 'b')
-        {
-          if ((infowin_topindex -= (infowin_height - 5)) < 0)
-            infowin_topindex = 0;
-          TRACE_LOG("New infowin_topindex: %d.\n", infowin_topindex);
-        }
-      }
-      else
-      {
-        bytes_read = 0;
-
-        while (bytes_read != sizeof(int))
-        {
-          read_retval = read(
-              sdl_if_signalling_pipe[0],
-              &new_signal, 
-              sizeof(int));
-
-          if (read_retval == -1)
-          {
-            if (errno == EAGAIN)
-            {
-              errno = 0;
-              continue;
-            }
-            else
-            {
-              i18n_translate_and_exit(
-                  fizmo_sdl_module_name,
-                  i18n_sdl_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
-                  -0x2041,
-                  "read",
-                  errno,
-                  strerror(errno));
-            }
-          }
-          else
-          {
-            bytes_read += read_retval;
-          }
-        }
-
-        if (new_signal == SIGWINCH)
-        {
-          //exit(1);
-          perform_init = true;
-          endwin();
-        }
-      }
-    }
-    else if (select_retval < 0)
-    {
-      if (errno == EINTR)
-        errno = 0;
-      else
-        i18n_translate_and_exit(
-            fizmo_sdl_module_name,
-            i18n_sdl_ERROR_P0D_OCCURED_BEFORE_READ_P1S,
-            -0x203c,
-            errno,
-            strerror(errno));
-    }
-  }
-
-#ifndef DISABLE_FILELIST
-  free_z_story_list(story_list);
-#endif // DISABLE_FILELIST
-  delwin(infowin);
-  erase();
-  move(0,0);
-  refresh();
-
-  sigaction(SIGWINCH, NULL, NULL);
-
-  endwin();
-  wordwrap_destroy_wrapper(infowin_output_wordwrapper);
-
-  return result;
-}
-*/
 
 
 /*
@@ -2553,546 +2028,7 @@ int main(int argc, char *argv[])
   turn_on_trace();
 #endif // ENABLE_TRACING
 
-  /*
-  setlocale(LC_ALL, "C");
-  setlocale(LC_CTYPE, "");
-
-  fizmo_register_screen_cell_interface(&sdl_interface);
-
-  sdl_argc = argc;
-  sdl_argv = argv;
-
-  while (argi < argc)
-  {
-    if ((strcmp(argv[argi], "-l") == 0)
-        || (strcmp(argv[argi], "--set-locale") == 0))
-    {
-      if (++argi == argc)
-      {
-        print_startup_syntax();
-        exit(EXIT_FAILURE);
-      }
-
-      if (set_current_locale_name(argv[argi]) != 0)
-      {
-        streams_latin1_output("\n");
-
-        i18n_translate(
-            fizmo_sdl_module_name,
-            i18n_sdl_INVALID_CONFIGURATION_VALUE_P0S_FOR_P1S,
-            argv[argi],
-            "locale");
-
-        streams_latin1_output("\n");
-
-        print_startup_syntax();
-        exit(EXIT_FAILURE);
-      }
-
-      set_configuration_value("dont-set-locale-from-config", "true");
-      argi++;
-    }
-    else if ((strcmp(argv[argi], "-pr") == 0)
-        || (strcmp(argv[argi], "--predictable") == 0))
-    {
-      set_configuration_value("random-mode", "predictable");
-      argi += 1;
-    }
-    else if ((strcmp(argv[argi], "-ra") == 0)
-        || (strcmp(argv[argi], "--random") == 0))
-    {
-      set_configuration_value("random-mode", "random");
-      argi += 1;
-    }
-    else if ((strcmp(argv[argi], "-st") == 0)
-        || (strcmp(argv[argi], "--start-transcript") == 0))
-    {
-      set_configuration_value("start-script-when-story-starts", "true");
-      argi += 1;
-    }
-    else if ((strcmp(argv[argi], "-rc") == 0)
-        || (strcmp(argv[argi], "--start-recording-commands") == 0))
-    {
-      set_configuration_value(
-          "start-command-recording-when-story-starts", "true");
-      argi += 1;
-    }
-    else if ((strcmp(argv[argi], "-fi") == 0)
-        || (strcmp(argv[argi], "--start-file-input") == 0))
-    {
-      set_configuration_value(
-          "start-file-input-when-story-starts", "true");
-      argi += 1;
-    }
-    else if ((strcmp(argv[argi], "-if") == 0)
-        || (strcmp(argv[argi], "--input-filename") == 0))
-    {
-      if (++argi == argc)
-      {
-        print_startup_syntax();
-        exit(EXIT_FAILURE);
-      }
-      set_configuration_value(
-          "input-command-filename", argv[argi]);
-      argi += 1;
-    }
-    else if ((strcmp(argv[argi], "-rf") == 0)
-        || (strcmp(argv[argi], "--record-filename") == 0))
-    {
-      if (++argi == argc)
-      {
-        print_startup_syntax();
-        exit(EXIT_FAILURE);
-      }
-      set_configuration_value(
-          "record-command-filename", argv[argi]);
-      argi += 1;
-    }
-    else if ((strcmp(argv[argi], "-tf") == 0)
-        || (strcmp(argv[argi], "--transcript-filename") == 0))
-    {
-      if (++argi == argc)
-      {
-        print_startup_syntax();
-        exit(EXIT_FAILURE);
-      }
-      set_configuration_value(
-          "transcript-filename", argv[argi]);
-      argi += 1;
-    }
-    else if (
-        (strcmp(argv[argi], "-b") == 0)
-        || (strcmp(argv[argi], "--background-color") == 0) )
-    {
-      if (++argi == argc)
-      {
-        print_startup_syntax();
-        exit(EXIT_FAILURE);
-      }
-
-      if ((new_color = colorname_to_infocomcode(argv[argi])) == -1)
-      {
-        print_startup_syntax();
-        exit(EXIT_FAILURE);
-      }
-
-      screen_default_background_color = new_color;
-      argi++;
-    }
-    else if (
-        (strcmp(argv[argi], "-f") == 0)
-        || (strcmp(argv[argi], "--foreground-color") == 0) )
-    {
-      if (++argi == argc)
-      {
-        print_startup_syntax();
-        exit(EXIT_FAILURE);
-      }
-
-      if ((new_color = colorname_to_infocomcode(argv[argi])) == -1)
-      {
-        print_startup_syntax();
-        exit(EXIT_FAILURE);
-      }
-
-      screen_default_foreground_color = new_color;
-      argi++;
-    }
-    else if (
-        (strcmp(argv[argi], "-um") == 0)
-        ||
-        (strcmp(argv[argi], "--umem") == 0)
-        )
-    {
-      set_configuration_value("quetzal-umem", "true");
-      argi ++;
-    }
-    else if (
-        (strcmp(argv[argi], "-dh") == 0)
-        ||
-        (strcmp(argv[argi], "--disable-hyphenation") == 0)
-        )
-    {
-      set_configuration_value("disable-hyphenation", "true");
-      argi ++;
-    }
-    else if (
-        (strcmp(argv[argi], "-nc") == 0)
-        || (strcmp(argv[argi], "--dont-use-colors: ") == 0) )
-    {
-      set_configuration_value("disable-color", "true");
-      argi ++;
-    }
-    else if (
-        (strcmp(argv[argi], "-ec") == 0)
-        || (strcmp(argv[argi], "--enable-colors: ") == 0) )
-    {
-      set_configuration_value("enable-color", "true");
-      argi ++;
-    }
-#ifdef ENABLE_X11_IMAGES
-    else if (
-        (strcmp(argv[argi], "-nx") == 0)
-        ||
-        (strcmp(argv[argi], "--disable-x11-graphics") == 0)
-        )
-    {
-      enable_x11_graphics = false;
-      argi++;
-    }
-    else if (
-        (strcmp(argv[argi], "-xi") == 0)
-        ||
-        (strcmp(argv[argi], "--enable-x11-inline-graphics") == 0)
-        )
-    {
-      enable_x11_inline_graphics = true;
-      argi++;
-    }
-    else if (
-        (strcmp(argv[argi], "-xt") == 0)
-        ||
-        (strcmp(argv[argi], "--enable-xterm-title") == 0)
-        )
-    {
-      use_xterm_title = true;
-      argi++;
-    }
-#endif
-    else if (
-        (strcmp(argv[argi], "-ds") == 0)
-        ||
-        (strcmp(argv[argi], "--disable-sound") == 0))
-    {
-      set_configuration_value("disable-sound", "true");
-      argi += 1;
-    }
-    else if (
-        (strcmp(argv[argi], "-t") == 0)
-        ||
-        (strcmp(argv[argi], "--set-tandy-flag") == 0))
-    {
-      set_configuration_value("set-tandy-flag", "true");
-      argi += 1;
-    }
-    else if (
-        (strcmp(argv[argi], "-lm") == 0)
-        ||
-        (strcmp(argv[argi], "-rm") == 0)
-        ||
-        (strcmp(argv[argi], "--left-margin") == 0)
-        ||
-        (strcmp(argv[argi], "--right-margin") == 0)
-        )
-    {
-      if (++argi == argc)
-      {
-        print_startup_syntax();
-        exit(EXIT_FAILURE);
-      }
-
-      int_value = atoi(argv[argi]);
-
-      if (
-          ( (int_value == 0) && (strcmp(argv[argi], "0") != 0) )
-          ||
-          (int_value < 0)
-         )
-      {
-        i18n_translate(
-            fizmo_sdl_module_name,
-            i18n_sdl_INVALID_CONFIGURATION_VALUE_P0S_FOR_P1S,
-            argv[argi],
-            argv[argi - 1]);
-
-        streams_latin1_output("\n");
-
-        print_startup_syntax();
-        exit(EXIT_FAILURE);
-      }
-
-      if (
-          (strcmp(argv[argi - 1], "-lm") == 0)
-          ||
-          (strcmp(argv[argi - 1], "--left-margin") == 0)
-         )
-        set_custom_left_cell_margin(int_value);
-      else
-        set_custom_right_cell_margin(int_value);
-
-      argi += 1;
-    }
-    else if (
-        (strcmp(argv[argi], "-h") == 0)
-        ||
-        (strcmp(argv[argi], "--help") == 0)
-        )
-    {
-      print_startup_syntax();
-      exit(0);
-    }
-    else if (
-        (strcmp(argv[argi], "-nu") == 0)
-        ||
-        (strcmp(argv[argi], "--dont-update-story-list") == 0))
-    {
-      dont_update_story_list_on_start = true;
-      argi += 1;
-    }
-#ifndef DISABLE_FILELIST
-    else if (
-        (strcmp(argv[argi], "-u") == 0)
-        ||
-        (strcmp(argv[argi], "--update-story-list") == 0))
-    {
-      printf("\n");
-      update_fizmo_story_list();
-      printf("\n");
-      directory_was_searched = true;
-      argi += 1;
-    }
-    else if (
-        (strcmp(argv[argi], "-s") == 0)
-        ||
-        (strcmp(argv[argi], "--search") == 0))
-    {
-      if (++argi == argc)
-      {
-        print_startup_syntax();
-        exit(EXIT_FAILURE);
-      }
-
-      if (strlen(argv[argi]) > 0)
-      {
-        if (argv[argi][0] == '/')
-          search_directory(argv[argi], false);
-        else
-        {
-          if (cwd == NULL)
-            cwd = fsi->get_cwd();
-
-          if (absdirname_len < strlen(cwd) + strlen(argv[argi]) + 2)
-          {
-            absdirname_len = strlen(cwd) + strlen(argv[argi]) + 2;
-            absdirname = fizmo_realloc(absdirname, absdirname_len);
-          }
-          sprintf(absdirname ,"%s/%s", cwd, argv[argi]);
-          search_directory(absdirname, false);
-        }
-
-        printf("\n");
-        directory_was_searched = true;
-      }
-
-      argi += 1;
-    }
-    else if (
-        (strcmp(argv[argi], "-rs") == 0)
-        ||
-        (strcmp(argv[argi], "--recursively-search") == 0))
-    {
-      if (++argi == argc)
-      {
-        print_startup_syntax();
-        exit(EXIT_FAILURE);
-      }
-
-      if (strlen(argv[argi]) > 0)
-      {
-        if (argv[argi][0] == '/')
-          search_directory(argv[argi], true);
-        else
-        {
-          if (cwd == NULL)
-            cwd = fsi->get_cwd();
-
-          if (absdirname_len < strlen(cwd) + strlen(argv[argi]) + 2)
-          {
-            absdirname_len = strlen(cwd) + strlen(argv[argi]) + 2;
-            absdirname = fizmo_realloc(absdirname, absdirname_len);
-          }
-          sprintf(absdirname ,"%s/%s", cwd, argv[argi]);
-          search_directory(absdirname, true);
-        }
-
-        printf("\n");
-        directory_was_searched = true;
-      }
-
-      argi += 1;
-    }
-#endif // DISABLE_FILELIST
-    else if (
-        (strcmp(argv[argi], "-sy") == 0)
-        ||
-        (strcmp(argv[argi], "--sync-transcript") == 0))
-    {
-      set_configuration_value("sync-transcript", "true");
-      argi += 1;
-    }
-    else if (story_filename_parameter_number == -1)
-    {
-      story_filename_parameter_number = argi;
-      argi++;
-    }
-    else if (blorb_filename_parameter_number == -1)
-    {
-      blorb_filename_parameter_number = argi;
-      argi++;
-    }
-    else
-    {
-      // Unknown parameter:
-      print_startup_syntax();
-      exit(EXIT_FAILURE);
-    }
-  }
-
-  if (cwd != NULL)
-    free(cwd);
-
-  if (absdirname != NULL)
-    free(absdirname);
-
-  if (directory_was_searched == true)
-    exit(EXIT_SUCCESS);
-
-  if (story_filename_parameter_number == -1)
-  {
-#ifndef DISABLE_FILELIST
-    if ((input_file = select_story_from_menu()) == NULL)
-      return 0;
-    story_stream = fsi->openfile(
-        input_file, FILETYPE_DATA, FILEACCESS_READ);
-#endif // DISABLE_FILELIST
-  }
-  else
-  {
-    // The user has given some filename or description name on the command line.
-    input_file = argv[story_filename_parameter_number];
-
-    // First, test if this may be the filename for a savegame.
-#ifndef DISABLE_FILELIST
-    // We can only restore saved games directly from the save file in
-    // case the filelist functionality exists.
-    if (detect_saved_game(input_file, &story_to_load_filename) == true)
-    {
-      // User provided a savegame name on the command line.
-      savegame_to_restore = fsi->openfile(
-          input_file, FILETYPE_DATA, FILEACCESS_READ);
-      story_stream = fsi->openfile(
-          story_to_load_filename, FILETYPE_DATA, FILEACCESS_READ);
-    }
-    else
-    {
-#endif // DISABLE_FILELIST
-      // Check if parameter is a valid filename.
-      if ((story_stream = fsi->openfile(
-              input_file, FILETYPE_DATA, FILEACCESS_READ)) == NULL)
-      {
-#ifndef DISABLE_FILELIST
-        // In case it's not a regular file, use the filelist to find
-        // something similiar.
-        story_list = get_z_story_list();
-        for (i=0; i<story_list->nof_entries; i++)
-        {
-          if (strcasecmp(story_list->entries[i]->title, input_file) == 0)
-          {
-            assumed_filename = fizmo_strdup(story_list->entries[i]->filename);
-            story_stream = fsi->openfile(
-                assumed_filename, FILETYPE_DATA, FILEACCESS_READ);
-            break;
-          }
-        }
-        free_z_story_list(story_list);
-#endif // DISABLE_FILELIST
-      }
-#ifndef DISABLE_FILELIST
-    }
-#endif // DISABLE_FILELIST
-  }
-
-  if (story_stream == NULL)
-  {
-    i18n_translate_and_exit(
-        fizmo_sdl_module_name,
-        i18n_sdl_COULD_NOT_OPEN_OR_FIND_P0S,
-        -0x2016,
-        input_file);
-    exit(EXIT_FAILURE);
-  }
-
-  timerval.it_interval.tv_sec = 0;
-  timerval.it_interval.tv_usec = 0;
-
-  empty_timerval.it_interval.tv_sec = 0;
-  empty_timerval.it_interval.tv_usec = 0;
-  empty_timerval.it_value.tv_sec = 0;
-  empty_timerval.it_value.tv_usec = 0;
-
-  // Create a new signalling pipe. This pipe is used by a select call to
-  // detect an incoming time-signal for the input routine.
-  if (pipe(sdl_if_signalling_pipe) != 0)
-    i18n_translate_and_exit(
-        fizmo_sdl_module_name,
-        i18n_sdl_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
-        -0x2016,
-        "pipe",
-        errno,
-        strerror(errno));
-
-  // Get the current flags for the read-end of the pipe.
-  if ((flags = fcntl(sdl_if_signalling_pipe[0], F_GETFL, 0)) == -1)
-    i18n_translate_and_exit(
-        fizmo_sdl_module_name,
-        i18n_sdl_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
-        -0x2017,
-        "fcntl / F_GETFL",
-        errno,
-        strerror(errno));
-
-  // Add the nonblocking flag the read-end of the pipe, thus making incoming
-  // input "visible" at once without having to wait for a newline.
-  if ((fcntl(sdl_if_signalling_pipe[0], F_SETFL, flags|O_NONBLOCK)) == -1)
-    i18n_translate_and_exit(
-        fizmo_sdl_module_name,
-        i18n_sdl_FUNCTION_CALL_P0S_RETURNED_ERROR_P1D_P2S,
-        -0x2018,
-        "fcntl / F_SETFL",
-        errno,
-        strerror(errno));
-
-  sigemptyset(&default_sigaction.sa_mask);
-  default_sigaction.sa_flags = 0;
-  default_sigaction.sa_handler = &catch_signal;
-  sigaction(SIGALRM, &default_sigaction, NULL);
-
-  sigemptyset(&default_sigaction.sa_mask);
-  default_sigaction.sa_flags = 0;
-  default_sigaction.sa_handler = &sdl_if_catch_signal;
-  sigaction(SIGWINCH, &default_sigaction, NULL);
-
-  if (blorb_filename_parameter_number != -1)
-    blorb_stream = fsi->openfile(
-        argv[blorb_filename_parameter_number], FILETYPE_DATA, FILEACCESS_READ);
-
-  fizmo_start(
-      story_stream,
-      blorb_stream,
-      savegame_to_restore,
-      screen_default_foreground_color,
-      screen_default_background_color);
-
-  sigaction(SIGWINCH, NULL, NULL);
-
-  if (story_filename_parameter_number == -1)
-    free(input_file);
-
-  TRACE_LOG("Closing signalling pipes.\n");
-
-  close(sdl_if_signalling_pipe[1]);
-  close(sdl_if_signalling_pipe[0]);
-  */
+  fizmo_register_screen_pixel_interface(&sdl_interface);
 
   while (argi < argc)
   {
@@ -3360,92 +2296,95 @@ int main(int argc, char *argv[])
     }
   }
 
-  if (story_filename_parameter_number == -1)
-  {
-    return -1;
+  if (story_filename_parameter_number == -1) {
+    // User provided no story file name.
+    print_startup_syntax();
   }
-  else
-  {
+  else {
     // The user has given some filename or description name on the command line.
     input_file = argv[story_filename_parameter_number];
 
-      // Check if parameter is a valid filename.
+    // Check if parameter is a valid filename.
     story_stream = fsi->openfile(
         input_file, FILETYPE_DATA, FILEACCESS_READ);
-  }
 
-  if (story_stream == NULL)
-  {
-    i18n_translate_and_exit(
-        fizmo_sdl_module_name,
-        i18n_sdl_COULD_NOT_OPEN_OR_FIND_P0S,
-        -0x2016,
-        input_file);
-    exit(EXIT_FAILURE);
-  }
+    if (story_stream == NULL)
+    {
+      i18n_translate_and_exit(
+          fizmo_sdl_module_name,
+          i18n_sdl_COULD_NOT_OPEN_OR_FIND_P0S,
+          -0x2016,
+          input_file);
+      exit(EXIT_FAILURE);
+    }
+    else {
+      //SDL_putenv("SDL_VIDEODRIVER=Quartz");
 
-  //SDL_putenv("SDL_VIDEODRIVER=Quartz");
+      if (SDL_Init(SDL_INIT_EVERYTHING) < 0)
+        i18n_translate_and_exit(
+            fizmo_sdl_module_name,
+            i18n_sdl_FUNCTION_CALL_P0S_ABORTED_DUE_TO_ERROR,
+            -1,
+            "SDL_Init");
 
-  if (SDL_Init(SDL_INIT_EVERYTHING) < 0)
-    i18n_translate_and_exit(
-        fizmo_sdl_module_name,
-        i18n_sdl_FUNCTION_CALL_P0S_ABORTED_DUE_TO_ERROR,
-        -1,
-        "SDL_Init");
+      atexit(SDL_Quit);
+      SDL_EnableUNICODE(1);
+      SDL_EnableKeyRepeat(200, 20);
 
-  atexit(SDL_Quit);
-  SDL_EnableUNICODE(1);
-  SDL_EnableKeyRepeat(200, 20);
+      if ((Surf_Display = SDL_SetVideoMode(
+              sdl_interface_screen_width_in_pixels,
+              sdl_interface_screen_height_in_pixels,
+              sdl_color_depth,
+              sdl_video_flags)) == NULL)
+        i18n_translate_and_exit(
+            fizmo_sdl_module_name,
+            i18n_sdl_FUNCTION_CALL_P0S_ABORTED_DUE_TO_ERROR,
+            -1,
+            "SDL_SetVideoMode");
 
-  if ((Surf_Display = SDL_SetVideoMode(
-          sdl_interface_screen_width_in_pixels,
-          sdl_interface_screen_height_in_pixels,
-          sdl_color_depth,
-          sdl_video_flags)) == NULL)
-    i18n_translate_and_exit(
-        fizmo_sdl_module_name,
-        i18n_sdl_FUNCTION_CALL_P0S_ABORTED_DUE_TO_ERROR,
-        -1,
-        "SDL_SetVideoMode");
+      timeout_semaphore = SDL_CreateSemaphore(1);
 
-  timeout_semaphore = SDL_CreateSemaphore(1);
+      /*
+         SDL_SysWMinfo info;
+         SDL_VERSION(&info.version);
 
-  /*
-  SDL_SysWMinfo info;
-  SDL_VERSION(&info.version);
+         if(!SDL_GetWMInfo(&info)) {
+         printf("SDL cant get from SDL\n");
+         }
 
-  if(!SDL_GetWMInfo(&info)) {
-    printf("SDL cant get from SDL\n");
-  }
+         if ( info.subsystem != SDL_SYSWM_X11 ) {
+         printf("SDL is not running on X11\n");
+         }
 
-  if ( info.subsystem != SDL_SYSWM_X11 ) {
-    printf("SDL is not running on X11\n");
-  }
-
-  display = info.info.x11.display;
-  window = info.info.x11.window;
-  */
-
-  fizmo_register_screen_pixel_interface(&sdl_interface);
+         display = info.info.x11.display;
+         window = info.info.x11.window;
+         */
 
 #ifdef SOUND_INTERFACE_STRUCT_NAME
-  fizmo_register_sound_interface(&SOUND_INTERFACE_STRUCT_NAME);
+      fizmo_register_sound_interface(&SOUND_INTERFACE_STRUCT_NAME);
 #endif // SOUND_INTERFACE_STRUCT_NAME
 
-  // Parsing must occur after "fizmo_register_screen_cell_interface" so
-  // that fizmo knows where to forward "parse_config_parameter" parameters
-  // to.
+      // Parsing must occur after "fizmo_register_screen_cell_interface" so
+      // that fizmo knows where to forward "parse_config_parameter" parameters
+      // to.
 #ifndef DISABLE_CONFIGFILES
-  parse_fizmo_config_files();
+      parse_fizmo_config_files();
 #endif // DISABLE_CONFIGFILES
 
-  fizmo_start(
-      story_stream,
-      blorb_stream,
-      savegame_to_restore);
+      fizmo_start(
+          story_stream,
+          blorb_stream,
+          savegame_to_restore);
 
-  SDL_DestroySemaphore(timeout_semaphore);
-  SDL_Quit();
+      SDL_DestroySemaphore(timeout_semaphore);
+      SDL_Quit();
+    }
+  }
+
+#ifdef ENABLE_TRACING
+  TRACE_LOG("Turning off trace.\n\n");
+  turn_off_trace();
+#endif // ENABLE_TRACING
 
   return 0;
 }
